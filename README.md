@@ -79,11 +79,12 @@ Run (adjust volume path if you want a bind mount instead of a named volume):
 
 ```bash
 docker run --rm -it \
-  --device /dev/dri \
-  --device /dev/kfd \
   --shm-size=2g \
   -p 8888:8888 \
   -v unsloth-home:/root/.unsloth \
+  -v /dev/kfd:/dev/kfd \
+  -v /dev/dri:/dev/dri \
+  --group-add video --group-add render \
   unsloth-amd:local
 ```
 
@@ -91,11 +92,12 @@ Then either rely on the default entrypoint (automatic first install) or override
 
 ```bash
 docker run --rm -it \
-  --device /dev/dri \
-  --device /dev/kfd \
   --shm-size=2g \
   -e UNSLOTH_SKIP_AUTO_INSTALL=1 \
   -v unsloth-home:/root/.unsloth \
+  -v /dev/kfd:/dev/kfd \
+  -v /dev/dri:/dev/dri \
+  --group-add video --group-add render \
   unsloth-amd:local \
   bash
 ```
@@ -129,6 +131,10 @@ Then start the stack again to trigger a fresh installer run (unless `UNSLOTH_SKI
 
 ## Troubleshooting
 
-- **Installer chooses CPU PyTorch:** the container usually cannot see the GPU during `docker build`. Run the installer at **runtime** with `/dev/dri` and `/dev/kfd` passed through. Verify with `rocminfo` inside the container.
-- **`/dev/dri` or `/dev/kfd` permission errors:** on some hosts you may need `group_add: [video, render]` or numeric supplementary GIDs matching the host; adjust Compose to match your udev setup.
+- **Installer chooses CPU PyTorch:** two common causes: (1) **ROCm tools not on `PATH` inside the image** — `install.sh` uses `command -v rocminfo`; this image prepends `/opt/rocm/bin`. (2) **GPU device nodes not visible in the container** — Compose **bind-mounts** `/dev/dri` and `/dev/kfd` (a bare `devices: /dev/dri` entry is a directory, not a single device, and often does not pass your GPU). Rebuild the image after Dockerfile changes, then check:
+  ```bash
+  docker compose run --rm unsloth-amd bash -lc 'rocminfo | head -40'
+  ```
+  You should see a `Name: gfx…` GPU agent, not only the CPU. If you still get CPU wheels, remove the install marker (and optionally the `unsloth-home` volume) and bring the stack up again so `install.sh` re-runs with GPU visible.
+- **`/dev/dri` or `/dev/kfd` permission errors:** Compose includes `group_add: [video, render]`; if ACLs or unusual GIDs persist on your host, add numeric supplementary GIDs that match the host’s `getent group video render` output.
 - **OOM or dataloader issues:** `shm_size` is set to 2 GB in Compose; increase if needed.

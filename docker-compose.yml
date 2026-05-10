@@ -1,9 +1,14 @@
 services:
   unsloth-amd:
     build: .
-    devices:
-      - /dev/dri
-      - /dev/kfd
+    # Bind-mount DRM + KFD nodes (Docker `devices:` does not pass the whole /dev/dri tree).
+    volumes:
+      - unsloth-home:/root/.unsloth
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
     shm_size: "2gb"
     stdin_open: true
     tty: true
@@ -12,8 +17,6 @@ services:
     environment:
       UNSLOTH_STUDIO_HOST: "0.0.0.0"
       UNSLOTH_STUDIO_PORT: "${UNSLOTH_STUDIO_PORT:-8888}"
-    volumes:
-      - unsloth-home:/root/.unsloth
     restart: unless-stopped
 
 volumes:

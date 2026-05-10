@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export PATH="/root/.local/bin:${PATH}"
+# ROCm CLIs live under /opt/rocm/bin; install.sh uses `command -v rocminfo` / amd-smi.
+export PATH="/opt/rocm/bin:/root/.local/bin:${PATH}"
 
 MARKER="${HOME}/.unsloth/.docker-install-complete"
 mkdir -p "$(dirname "${MARKER}")"

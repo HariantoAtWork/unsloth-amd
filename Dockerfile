@@ -4,7 +4,7 @@ FROM ubuntu:24.04
 ARG ROCM_VERSION=7.2.3
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    PATH="/root/.local/bin:${PATH}" \
+    PATH="/opt/rocm/bin:/root/.local/bin:${PATH}" \
     UNSLOTH_STUDIO_HOST=0.0.0.0 \
     UNSLOTH_STUDIO_PORT=8888
 
@@ -34,6 +34,7 @@ RUN set -eux; \
         rocm-core \
         rocminfo \
         rocm-smi \
+        amd-smi-lib \
         amd-container-toolkit; \
     rm -rf /var/lib/apt/lists/*
 

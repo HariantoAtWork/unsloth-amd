@@ -4,6 +4,7 @@ FROM ubuntu:24.04
 ARG ROCM_VERSION=7.2.3
 
 ENV DEBIAN_FRONTEND=noninteractive \
+    ROCM_PATH=/opt/rocm \
     PATH="/opt/rocm/bin:/root/.local/bin:${PATH}" \
     UNSLOTH_STUDIO_HOST=0.0.0.0 \
     UNSLOTH_STUDIO_PORT=8888
@@ -29,12 +30,20 @@ RUN set -eux; \
         > /etc/apt/sources.list.d/rocm.list; \
     echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/amd-container-toolkit/apt/ noble main" \
         > /etc/apt/sources.list.d/amd-container-toolkit.list; \
+    printf '%s\n' \
+        'Package: *' \
+        'Pin: release o=repo.radeon.com' \
+        'Pin-Priority: 600' \
+        > /etc/apt/preferences.d/rocm-pin-600; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         rocm-core \
         rocminfo \
         rocm-smi \
         amd-smi-lib \
+        rocm-dev \
+        hipblas-dev \
+        rocblas-dev \
         amd-container-toolkit; \
     rm -rf /var/lib/apt/lists/*
 

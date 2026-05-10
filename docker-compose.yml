@@ -1,0 +1,16 @@
+services:
+  unsloth-amd:
+    build: .
+    devices:
+      - /dev/dri
+      - /dev/kfd
+    shm_size: "2gb"
+    stdin_open: true
+    tty: true
+    volumes:
+      - unsloth-home:/root/.unsloth
+    restart: unless-stopped
+
+volumes:
+  unsloth-home:
+    name: unsloth-home

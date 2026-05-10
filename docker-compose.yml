@@ -7,6 +7,11 @@ services:
     shm_size: "2gb"
     stdin_open: true
     tty: true
+    ports:
+      - "${UNSLOTH_STUDIO_PORT:-8888}:${UNSLOTH_STUDIO_PORT:-8888}"
+    environment:
+      UNSLOTH_STUDIO_HOST: "0.0.0.0"
+      UNSLOTH_STUDIO_PORT: "${UNSLOTH_STUDIO_PORT:-8888}"
     volumes:
       - unsloth-home:/root/.unsloth
     restart: unless-stopped

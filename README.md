@@ -24,6 +24,8 @@ curl -fsSL https://unsloth.ai/install.sh | sh
 
 A marker file is created at `~/.unsloth/.docker-install-complete` inside the container (backed by the `unsloth-home` volume) so this only runs once.
 
+After install (and on later boots), the container runs **Unsloth Studio** bound to `0.0.0.0` so it can be reached from the host. By default Compose publishes **`8888`** (`http://localhost:8888`). Override the host/container port with `UNSLOTH_STUDIO_PORT` when invoking Compose (the same value is passed through to Studio).
+
 Check logs:
 
 ```bash
@@ -36,7 +38,9 @@ Open a shell after install:
 docker compose exec unsloth-amd bash
 ```
 
-Unsloth Studio’s venv (after a successful install) is under `/root/.unsloth/studio/.venv` by default. Ensure `PATH` includes `~/.local/bin` for the `unsloth` / `uv` shims the installer adds (the image already prepends `/root/.local/bin`).
+Unsloth Studio’s venv (after a successful install) lives under `~/.unsloth/studio/unsloth_studio` (installer layout). Ensure `PATH` includes `~/.local/bin` for the `unsloth` / `uv` shims the installer adds (the image already prepends `/root/.local/bin`).
+
+To run a shell instead of Studio, override the command, for example: `docker compose run --rm unsloth-amd bash`.
 
 ## Manual install (skip automatic `install.sh`)
 
@@ -78,6 +82,7 @@ docker run --rm -it \
   --device /dev/dri \
   --device /dev/kfd \
   --shm-size=2g \
+  -p 8888:8888 \
   -v unsloth-home:/root/.unsloth \
   unsloth-amd:local
 ```

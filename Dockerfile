@@ -4,7 +4,11 @@ FROM ubuntu:24.04
 ARG ROCM_VERSION=7.2.3
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    PATH="/root/.local/bin:${PATH}"
+    PATH="/root/.local/bin:${PATH}" \
+    UNSLOTH_STUDIO_HOST=0.0.0.0 \
+    UNSLOTH_STUDIO_PORT=8888
+
+EXPOSE 8888
 
 RUN set -eux; \
     apt-get update; \
@@ -34,7 +38,8 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+COPY docker-studio.sh /usr/local/bin/docker-studio.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/docker-studio.sh
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["sleep", "infinity"]
+CMD ["/usr/local/bin/docker-studio.sh"]

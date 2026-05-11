@@ -53,5 +53,4 @@ COPY docker-studio.sh /usr/local/bin/docker-studio.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/docker-studio.sh
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-# CMD ["/usr/local/bin/docker-studio.sh"]
-CMD ["unsloth", "studio", "-H", "0.0.0.0", "-p", "8888"]
+CMD ["/usr/local/bin/docker-studio.sh"]

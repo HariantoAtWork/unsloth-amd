@@ -7,14 +7,20 @@ export DEBIAN_FRONTEND=noninteractive CI=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_N
 MARKER="${HOME}/.unsloth/.docker-install-complete"
 mkdir -p "$(dirname "${MARKER}")"
 
-if [[ ! -f "${MARKER}" && "${UNSLOTH_SKIP_AUTO_INSTALL:-0}" != "1" ]]; then
+# True if we can run Unsloth (shim on volume or Studio venv on volume).
+_unsloth_usable() {
+    command -v unsloth >/dev/null 2>&1 && return 0
+    [[ -x "${HOME}/.local/bin/unsloth" ]] && return 0
+    [[ -x "${HOME}/.unsloth/studio/unsloth_studio/bin/unsloth" ]] && return 0
+    return 1
+}
+
+_run_installer() {
     echo "==> Downloading https://unsloth.ai/install.sh"
     _installer="$(mktemp)"
     trap 'rm -f "${_installer:-}"' EXIT
     curl -fsSL https://unsloth.ai/install.sh -o "${_installer}"
 
-    # install.sh reads "Start Unsloth Studio now?" from /dev/tty — piping stdin does not work.
-    # expect(1) attaches a pty and sends "n" so Studio is not started inside the installer (CMD starts it).
     echo "==> Running installer under expect (auto-answer Studio prompt)"
     export INSTALLER="${_installer}"
     expect <<'EXPECT'
@@ -34,7 +40,19 @@ EXPECT
 
     rm -f "${_installer}"
     trap - EXIT
-    touch "${MARKER}"
+}
+
+if [[ "${UNSLOTH_SKIP_AUTO_INSTALL:-0}" != "1" ]]; then
+    # Marker lived on a volume but ~/.local was not — new container skipped install and had no shim.
+    if [[ -f "${MARKER}" ]] && ! _unsloth_usable; then
+        echo "==> Install marker exists but unsloth is missing; re-running installer (needs GPU /dev nodes)"
+        rm -f "${MARKER}"
+    fi
+
+    if [[ ! -f "${MARKER}" ]]; then
+        _run_installer
+        touch "${MARKER}"
+    fi
 fi
 
 exec "$@"

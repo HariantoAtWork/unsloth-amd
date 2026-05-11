@@ -4,9 +4,12 @@ services:
     devices:
       - /dev/kfd
       - /dev/dri
-    # Bind-mount DRM + KFD nodes (Docker `devices:` does not pass the whole /dev/dri tree).
+    # Bind-mount the full DRM tree + KFD so rocminfo / install.sh see the GPU (devices: /dev/dri is a directory).
     volumes:
       - unsloth-home:/root/.unsloth
+      - unsloth-local:/root/.local
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
     shm_size: "2gb"
     stdin_open: true
     tty: true
@@ -20,3 +23,5 @@ services:
 volumes:
   unsloth-home:
     name: unsloth-home
+  unsloth-local:
+    name: unsloth-local

@@ -124,7 +124,7 @@ Align this with a ROCm stack that matches PyTorch wheels Unsloth can pull for yo
 
   ```bash
   docker compose down
-  docker volume rm unsloth-home
+  docker volume rm unsloth-home unsloth-local
   ```
 
 Then start the stack again to trigger a fresh installer run (unless `UNSLOTH_SKIP_AUTO_INSTALL=1` is set).
@@ -137,4 +137,5 @@ Then start the stack again to trigger a fresh installer run (unless `UNSLOTH_SKI
   ```
   You should see a `Name: gfx…` GPU agent, not only the CPU. If you still get CPU wheels, remove the install marker (and optionally the `unsloth-home` volume) and bring the stack up again so `install.sh` re-runs with GPU visible.
 - **`/dev/dri` or `/dev/kfd` permission errors:** Compose includes `group_add: [video, render]`; if ACLs or unusual GIDs persist on your host, add numeric supplementary GIDs that match the host’s `getent group video render` output.
+- **Second `docker compose up -d` breaks with `unsloth: not found`:** the install-complete marker lives on **`unsloth-home`** (`/root/.unsloth`), but the **`unsloth` shim** is under **`/root/.local/bin`**. If **`/root/.local` is not on a volume**, a **new container** keeps the marker (volume) while the shim is gone (ephemeral layer) — install is skipped and **`CMD` fails**. Compose mounts **`unsloth-local:/root/.local`** so the shim survives restarts. The entrypoint also **drops the marker and re-runs the installer** if the marker exists but neither shim nor Studio venv binary is present (needs **`/dev/dri`** and **`/dev/kfd`** again).
 - **OOM or dataloader issues:** `shm_size` is set to 2 GB in Compose; increase if needed.

@@ -10,17 +10,17 @@ Ubuntu 24.04 image with ROCm apt packages, GPU device passthrough, and the offic
 
 ## Automatic first start (default)
 
+**`docker compose build`** / **`docker build`** only create the image (Ubuntu + ROCm/apt stack in the Dockerfile). They do **not** run `install.sh` or install Unsloth. The Unsloth install runs the **first time a container starts** (entrypoint), not during the build.
+
 From this directory:
 
 ```bash
 docker compose up --build -d
 ```
 
-On the **first** start, the entrypoint runs:
+`--build` is optional; it just rebuilds the image before `up`. Watch install progress with `docker compose logs -f unsloth-amd`.
 
-```bash
-curl -fsSL https://unsloth.ai/install.sh | sh
-```
+On the **first** start, **`docker-entrypoint.sh`** **`curl`**s **`https://unsloth.ai/install.sh`** to a temp file and runs **`sh`** under **`expect`**. The installer’s final **`Start Unsloth Studio now? [Y/n]`** is read from **`/dev/tty`**, so piping **`n`** on stdin does not work; **expect** drives a pseudo-TTY and sends **`n`** so Studio is not started inside the installer (your **`CMD`** starts Studio). The image installs the **`expect`** package for this. See **`docker-entrypoint.sh`**. Optional: **`patch.sh`** still documents the **`--no-launch`** sed/awk patch if you prefer not to use **expect**.
 
 A marker file is created at `~/.unsloth/.docker-install-complete` inside the container (backed by the `unsloth-home` volume) so this only runs once.
 

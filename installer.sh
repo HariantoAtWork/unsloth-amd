@@ -45,6 +45,7 @@ TAURI_MODE=false
 _USER_PYTHON=""
 _NO_TORCH_FLAG=false
 _VERBOSE=false
+_NO_LAUNCH_FLAG=false
 _next_is_package=false
 _next_is_python=false
 for arg in "$@"; do
@@ -65,6 +66,7 @@ for arg in "$@"; do
         --python) _next_is_python=true ;;
         --no-torch) _NO_TORCH_FLAG=true ;;
         --verbose|-v) _VERBOSE=true ;;
+        --no-launch) _NO_LAUNCH_FLAG=true ;;
     esac
 done
 
@@ -2176,6 +2178,10 @@ echo ""
 printf "  ${C_TITLE}%s${C_RST}\n" "Unsloth Studio installed!"
 printf "  ${C_DIM}%s${C_RST}\n" "$RULE"
 echo ""
+
+if [ "${_NO_LAUNCH_FLAG:-false}" = true ]; then
+    exit 0
+fi
 
 # In interactive terminals, ask the user before starting Studio.
 # In non-interactive environments (Docker, CI, cloud-init) just print instructions.

@@ -8,8 +8,6 @@ services:
     volumes:
       - unsloth-home:/root/.unsloth
       - unsloth-local:/root/.local
-      - /dev/kfd:/dev/kfd
-      - /dev/dri:/dev/dri
     shm_size: "2gb"
     stdin_open: true
     tty: true

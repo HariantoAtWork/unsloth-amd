@@ -1,0 +1,9 @@
+# Cloudflare Tunnel for the docker services
+networks:
+  cloudflared:
+    external: true
+
+services:
+  unsloth-amd:
+    networks:
+      - cloudflared

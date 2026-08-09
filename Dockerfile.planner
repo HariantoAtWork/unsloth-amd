@@ -4,11 +4,11 @@ FROM ubuntu:24.04
 ARG ROCM_VERSION=7.2.3
 
 # Fresh Unsloth install.sh currently pulls torch 2.11+rocm7.13, which SIGSEGVs on
-# gfx1151 (Radeon 8060S) as soon as a CUDA tensor is allocated. The known-good
-# stack on this host is torch 2.10.0+rocm7.1 (same as the working unsloth-amd volume).
-ARG PLANNER_TORCH=2.10.0+rocm7.1
-ARG PLANNER_TORCHVISION=0.25.0+rocm7.1
-ARG PLANNER_TORCH_INDEX=https://download.pytorch.org/whl/rocm7.1
+# gfx1151 (Radeon 8060S). Highest verified-good stack on this host is
+# torch 2.10.0+rocm7.12.0 from AMD's gfx1151 wheel index (7.13 still segfaults).
+ARG PLANNER_TORCH=2.10.0+rocm7.12.0
+ARG PLANNER_TORCHVISION=0.25.0+rocm7.12.0
+ARG PLANNER_TORCH_INDEX=https://repo.amd.com/rocm/whl/gfx1151/
 
 ENV DEBIAN_FRONTEND=noninteractive \
     ROCM_PATH=/opt/rocm \
@@ -78,9 +78,24 @@ export PATH="/opt/rocm/bin:/root/.bun/bin:/root/.local/bin:${PATH}"
 VENV="${HOME}/.unsloth/studio/unsloth_studio"
 PY="${VENV}/bin/python"
 MARKER="${HOME}/.unsloth/.docker-planner-torch-pin-complete"
-TORCH_SPEC="${PLANNER_TORCH:-2.10.0+rocm7.1}"
-TV_SPEC="${PLANNER_TORCHVISION:-0.25.0+rocm7.1}"
-INDEX="${PLANNER_TORCH_INDEX:-https://download.pytorch.org/whl/rocm7.1}"
+TORCH_SPEC="${PLANNER_TORCH:-2.10.0+rocm7.12.0}"
+TV_SPEC="${PLANNER_TORCHVISION:-0.25.0+rocm7.12.0}"
+INDEX="${PLANNER_TORCH_INDEX:-https://repo.amd.com/rocm/whl/gfx1151/}"
+
+_prefer_wheel_rocm_libs() {
+    local site
+    site="$("${PY}" -c 'import site; print(site.getsitepackages()[0])')"
+    local paths=()
+    [[ -d "${site}/_rocm_sdk_core/lib" ]] && paths+=("${site}/_rocm_sdk_core/lib")
+    [[ -d "${site}/_rocm_sdk_libraries_gfx1151/lib" ]] && paths+=("${site}/_rocm_sdk_libraries_gfx1151/lib")
+    [[ -d "${site}/torch/lib" ]] && paths+=("${site}/torch/lib")
+    if ((${#paths[@]})); then
+        local joined
+        joined="$(IFS=:; echo "${paths[*]}")"
+        export LD_LIBRARY_PATH="${joined}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+        echo "==> Preferring wheel ROCm libs: ${joined}"
+    fi
+}
 
 _pin_torch() {
     if [[ ! -x "${PY}" ]]; then
@@ -98,7 +113,7 @@ _pin_torch() {
     echo "==> Pinning planner torch to ${TORCH_SPEC} (was: ${current:-unknown})"
     echo "    index: ${INDEX}"
 
-    # Drop TheRock 7.13 meta packages that conflict with the rocm7.1 wheels.
+    # Drop mismatched TheRock/meta packages before installing the pinned gfx1151 stack.
     "${PY}" -m pip uninstall -y rocm rocm-sdk-core rocm-sdk-libraries-gfx1151 2>/dev/null || true
 
     "${PY}" -m pip install --upgrade \
@@ -109,10 +124,11 @@ _pin_torch() {
 
     "${PY}" -c 'import torch; print("pinned torch", torch.__version__, "hip", torch.version.hip)'
     mkdir -p "$(dirname "${MARKER}")"
-    touch "${MARKER}"
+    printf '%s\n' "${TORCH_SPEC}" > "${MARKER}"
 }
 
 _pin_torch
+_prefer_wheel_rocm_libs
 exec /usr/local/bin/docker-studio.sh
 EOF
 

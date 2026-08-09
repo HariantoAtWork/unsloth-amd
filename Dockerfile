@@ -6,18 +6,19 @@ ARG ROCM_VERSION=7.2.3
 # Fresh Unsloth install.sh currently pulls torch 2.11+rocm7.13, which SIGSEGVs on
 # gfx1151 (Radeon 8060S). Highest verified-good stack on this host is
 # torch 2.10.0+rocm7.12.0 from AMD's gfx1151 wheel index (7.13 still segfaults).
-ARG PLANNER_TORCH=2.10.0+rocm7.12.0
-ARG PLANNER_TORCHVISION=0.25.0+rocm7.12.0
-ARG PLANNER_TORCH_INDEX=https://repo.amd.com/rocm/whl/gfx1151/
+# Image tag convention: harianto/unsloth-amd:1.0.0-torch2.10.0-rocm7.12.0
+ARG UNSLOTH_TORCH=2.10.0+rocm7.12.0
+ARG UNSLOTH_TORCHVISION=0.25.0+rocm7.12.0
+ARG UNSLOTH_TORCH_INDEX=https://repo.amd.com/rocm/whl/gfx1151/
 
 ENV DEBIAN_FRONTEND=noninteractive \
     ROCM_PATH=/opt/rocm \
     PATH="/opt/rocm/bin:/root/.bun/bin:/root/.local/bin:${PATH}" \
     UNSLOTH_STUDIO_HOST=0.0.0.0 \
     UNSLOTH_STUDIO_PORT=8888 \
-    PLANNER_TORCH=${PLANNER_TORCH} \
-    PLANNER_TORCHVISION=${PLANNER_TORCHVISION} \
-    PLANNER_TORCH_INDEX=${PLANNER_TORCH_INDEX}
+    UNSLOTH_TORCH=${UNSLOTH_TORCH} \
+    UNSLOTH_TORCHVISION=${UNSLOTH_TORCHVISION} \
+    UNSLOTH_TORCH_INDEX=${UNSLOTH_TORCH_INDEX}
 
 EXPOSE 8888
 
@@ -68,8 +69,8 @@ RUN set -eux; \
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY docker-studio.sh /usr/local/bin/docker-studio.sh
 
-# After the shared installer finishes, pin the gfx1151-safe torch stack, then start Studio.
-COPY --chmod=755 <<'EOF' /usr/local/bin/docker-planner-studio.sh
+# After install.sh finishes, pin the gfx1151-safe torch stack, then start Studio.
+COPY --chmod=755 <<'EOF' /usr/local/bin/docker-studio-pinned.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -77,10 +78,10 @@ export PATH="/opt/rocm/bin:/root/.bun/bin:/root/.local/bin:${PATH}"
 
 VENV="${HOME}/.unsloth/studio/unsloth_studio"
 PY="${VENV}/bin/python"
-MARKER="${HOME}/.unsloth/.docker-planner-torch-pin-complete"
-TORCH_SPEC="${PLANNER_TORCH:-2.10.0+rocm7.12.0}"
-TV_SPEC="${PLANNER_TORCHVISION:-0.25.0+rocm7.12.0}"
-INDEX="${PLANNER_TORCH_INDEX:-https://repo.amd.com/rocm/whl/gfx1151/}"
+MARKER="${HOME}/.unsloth/.docker-torch-pin-complete"
+TORCH_SPEC="${UNSLOTH_TORCH:-2.10.0+rocm7.12.0}"
+TV_SPEC="${UNSLOTH_TORCHVISION:-0.25.0+rocm7.12.0}"
+INDEX="${UNSLOTH_TORCH_INDEX:-https://repo.amd.com/rocm/whl/gfx1151/}"
 
 _prefer_wheel_rocm_libs() {
     local site
@@ -106,11 +107,11 @@ _pin_torch() {
     local current
     current="$("${PY}" -c 'import torch; print(torch.__version__)' 2>/dev/null || true)"
     if [[ "${current}" == "${TORCH_SPEC}" && -f "${MARKER}" ]]; then
-        echo "==> Planner torch already pinned (${current})"
+        echo "==> Torch already pinned (${current})"
         return 0
     fi
 
-    echo "==> Pinning planner torch to ${TORCH_SPEC} (was: ${current:-unknown})"
+    echo "==> Pinning torch to ${TORCH_SPEC} (was: ${current:-unknown})"
     echo "    index: ${INDEX}"
 
     # Drop mismatched TheRock/meta packages before installing the pinned gfx1151 stack.
@@ -135,4 +136,4 @@ EOF
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/docker-studio.sh
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["/usr/local/bin/docker-planner-studio.sh"]
+CMD ["/usr/local/bin/docker-studio-pinned.sh"]

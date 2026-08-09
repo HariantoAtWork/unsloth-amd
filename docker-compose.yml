@@ -2,7 +2,7 @@ services:
   unsloth-amd:
     container_name: unsloth-amd
     build: .
-    image: harianto/unsloth-amd:latest
+    image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
     devices:
       - /dev/kfd
       - /dev/dri
@@ -23,10 +23,7 @@ services:
 
   unsloth-planner:
     container_name: unsloth-planner
-    build:
-      context: .
-      dockerfile: Dockerfile.planner
-    image: harianto/unsloth-planner:latest
+    image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
     devices:
       - /dev/kfd
       - /dev/dri
@@ -40,7 +37,7 @@ services:
 
   unsloth-builder:
     container_name: unsloth-builder
-    image: harianto/unsloth-amd:latest
+    image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
     devices:
       - /dev/kfd
       - /dev/dri

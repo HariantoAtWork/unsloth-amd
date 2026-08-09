@@ -1,5 +1,6 @@
 services:
   unsloth-amd:
+    profiles: ['builder']
     container_name: unsloth-amd
     build: .
     image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}

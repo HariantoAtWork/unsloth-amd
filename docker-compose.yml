@@ -23,7 +23,8 @@ services:
       # UNSLOTH_AUTOLOAD_LAST_MODEL: "0"
       # Optional: password for JWT login if the bootstrap password was rotated.
       UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
-      # Optional: reuse an existing Studio API key for the last-model watcher.
+      # Optional: pin a stable Studio API key (otherwise one is created once at
+      # ~/.unsloth/.docker-api-key and reused on every restart).
       # UNSLOTH_API_KEY: ""
     restart: unless-stopped
 

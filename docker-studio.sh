@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Start Unsloth Studio. When ~/.unsloth/.docker-last-model.json exists, reload that
-# model via `unsloth studio run`. A background watcher rewrites the JSON whenever
-# the active model changes so the next container restart restores it.
+# Start Unsloth Studio bound for Docker. Remembers the last loaded model on the
+# volume and reloads it via API after restart. Keeps a stable API key at
+# ~/.unsloth/.docker-api-key (unlike `studio run`, which mints a new "cli" key).
 set -euo pipefail
 
 export PATH="/opt/rocm/bin:/root/.bun/bin:/root/.local/bin:${PATH}"
@@ -13,6 +13,8 @@ LAST_MODEL_FILE="${UNSLOTH_LAST_MODEL_FILE:-${HOME}/.unsloth/.docker-last-model.
 WATCH_INTERVAL="${UNSLOTH_LAST_MODEL_WATCH_SECONDS:-15}"
 # Local loopback for health/status even when Studio binds 0.0.0.0.
 API_BASE="http://127.0.0.1:${PORT}"
+API_KEY_FILE="${UNSLOTH_API_KEY_FILE:-${HOME}/.unsloth/.docker-api-key}"
+API_KEY_NAME="${UNSLOTH_API_KEY_NAME:-docker}"
 
 UNSLOTH=""
 for _c in "${HOME}/.local/bin/unsloth" "${HOME}/.unsloth/studio/unsloth_studio/bin/unsloth"; do
@@ -143,6 +145,9 @@ PY
     return 1
 }
 
+# Stable API key for Docker autoload, status watching, and external clients.
+# Reused across restarts (unlike `unsloth studio run`, which always mints a new "cli" key).
+
 _studio_backend_dir() {
     local d
     for d in "${HOME}/.unsloth/studio/unsloth_studio"/lib/python*/site-packages/studio/backend; do
@@ -154,30 +159,34 @@ _studio_backend_dir() {
     return 1
 }
 
-# Mint/reuse an internal Studio API key so /api/inference/status works even when
-# the admin still has must_change_password (JWT login returns 403 for status).
-_ensure_watcher_api_key() {
+_ensure_stable_api_key() {
     if [[ -n "${UNSLOTH_API_KEY:-}" ]]; then
         printf '%s' "${UNSLOTH_API_KEY}"
         return 0
     fi
 
-    local backend key_file py
+    local backend py
     backend="$(_studio_backend_dir)" || return 1
     py="${HOME}/.unsloth/studio/unsloth_studio/bin/python"
     if [[ ! -x "${py}" ]]; then
         py="$(command -v python3)"
     fi
-    key_file="${HOME}/.unsloth/.docker-watcher-api-key"
-    mkdir -p "$(dirname "${key_file}")"
+    mkdir -p "$(dirname "${API_KEY_FILE}")"
+
+    # Prefer legacy watcher key file if present and still valid.
+    local legacy="${HOME}/.unsloth/.docker-watcher-api-key"
+    if [[ ! -f "${API_KEY_FILE}" && -f "${legacy}" ]]; then
+        cp -a "${legacy}" "${API_KEY_FILE}"
+    fi
 
     (
         cd "${backend}"
-        "${py}" - "${key_file}" <<'PY'
+        "${py}" - "${API_KEY_FILE}" "${API_KEY_NAME}" <<'PY'
 import sys
 from pathlib import Path
 
 key_file = Path(sys.argv[1])
+key_name = sys.argv[2]
 from auth.storage import (
     DEFAULT_ADMIN_USERNAME,
     create_api_key,
@@ -192,14 +201,19 @@ if key_file.is_file():
 
 raw, _row = create_api_key(
     DEFAULT_ADMIN_USERNAME,
-    name="docker-last-model-watcher",
-    internal=True,
+    name=key_name,
+    internal=False,
 )
 key_file.write_text(raw + "\n", encoding="utf-8")
 key_file.chmod(0o600)
 print(raw)
 PY
     )
+}
+
+# Back-compat name used by the watcher path.
+_ensure_watcher_api_key() {
+    _ensure_stable_api_key
 }
 
 _login_token() {
@@ -342,6 +356,55 @@ print(f"saved last model -> {path}: {payload}", flush=True)
 PY
 }
 
+_autoload_model_via_api() {
+    local token="$1"
+    if ! _autoload_enabled; then
+        return 0
+    fi
+    if [[ ! -f "${LAST_MODEL_FILE}" ]]; then
+        return 0
+    fi
+
+    local row model variant max_seq
+    if ! row="$(_read_last_model)"; then
+        echo "==> Ignoring invalid ${LAST_MODEL_FILE}; skipping autoload"
+        return 0
+    fi
+    IFS=$'\t' read -r model variant max_seq <<<"${row}"
+    echo "==> Autoloading last model via API: ${model}${variant:+ (${variant})}"
+
+    python3 - "${API_BASE}" "${token}" "${model}" "${variant}" "${max_seq}" <<'PY'
+import json, sys, urllib.error, urllib.request
+
+base, token, model, variant, max_seq = sys.argv[1:6]
+payload = {"model_path": model, "max_seq_length": int(max_seq or 0)}
+if variant and variant not in ("", "None"):
+    payload["gguf_variant"] = variant
+
+req = urllib.request.Request(
+    f"{base}/api/inference/load",
+    data=json.dumps(payload).encode(),
+    headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    },
+    method="POST",
+)
+try:
+    with urllib.request.urlopen(req, timeout=600) as resp:
+        body = resp.read().decode("utf-8", errors="replace")
+        print(f"autoload HTTP {resp.status}: {body[:300]}", flush=True)
+except urllib.error.HTTPError as exc:
+    detail = exc.read().decode("utf-8", errors="replace")
+    print(f"autoload failed HTTP {exc.code}: {detail[:500]}", file=sys.stderr)
+    sys.exit(1)
+except Exception as exc:
+    print(f"autoload failed: {exc}", file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 _watcher() {
     echo "==> Last-model watcher started (interval ${WATCH_INTERVAL}s)"
     if ! _wait_for_health; then
@@ -349,7 +412,7 @@ _watcher() {
     fi
 
     local token=""
-    token="$(_ensure_watcher_api_key 2>/dev/null || true)"
+    token="$(_ensure_stable_api_key 2>/dev/null || true)"
     if [[ -z "${token}" ]]; then
         token="$(_login_token 2>/dev/null || true)"
     fi
@@ -357,7 +420,10 @@ _watcher() {
         token="$(_extract_api_key_from_log 2>/dev/null || true)"
     fi
     if [[ -n "${token}" ]]; then
-        echo "==> Watcher authenticated for /api/inference/status"
+        echo "==> Stable API key ready (reused across restarts)"
+        echo "==> API Key: ${token}"
+        echo "==> Stored at: ${API_KEY_FILE} (or UNSLOTH_API_KEY)"
+        _autoload_model_via_api "${token}" || true
     else
         echo "==> Watcher has no API token yet; will use log parsing and retry key minting"
     fi
@@ -365,7 +431,7 @@ _watcher() {
     local last_log_model=""
     while [[ -n "${STUDIO_PID}" ]] && kill -0 "${STUDIO_PID}" 2>/dev/null; do
         if [[ -z "${token}" ]]; then
-            token="$(_ensure_watcher_api_key 2>/dev/null || true)"
+            token="$(_ensure_stable_api_key 2>/dev/null || true)"
             if [[ -z "${token}" ]]; then
                 token="$(_login_token 2>/dev/null || true)"
             fi
@@ -396,45 +462,19 @@ _watcher() {
 }
 
 _build_and_start_studio() {
-    local args=()
+    # Always use plain `studio` (not `studio run`). `studio run` mints a new
+    # "cli" API key on every boot; we keep a stable key on the volume instead.
+    local args=(studio --host "${HOST}" --port "${PORT}")
 
     if _autoload_enabled && [[ -f "${LAST_MODEL_FILE}" ]]; then
-        local row model variant max_seq
-        if row="$(_read_last_model)"; then
-            IFS=$'\t' read -r model variant max_seq <<<"${row}"
-            echo "==> Autoloading last model: ${model}${variant:+ (${variant})}"
-            # `studio run` has its own --host/--port (default 127.0.0.1). Parent
-            # `studio --host` flags are ignored for this subcommand.
-            # Do NOT pass --enable-tools here: with tools on, GGUF chat always
-            # returns SSE (incl. non-OpenAI tool_status events) even for
-            # stream=false, which breaks external OpenAI-compatible clients.
-            args=(
-                studio run
-                --host "${HOST}"
-                --port "${PORT}"
-                --yes
-                --model "${model}"
-            )
-            if [[ -n "${variant}" && "${variant}" != "None" ]]; then
-                args+=(--gguf-variant "${variant}")
-            fi
-            if [[ -n "${max_seq}" && "${max_seq}" != "0" ]]; then
-                args+=(--max-seq-length "${max_seq}")
-            fi
-        else
-            echo "==> Ignoring invalid ${LAST_MODEL_FILE}; starting Studio without a model"
-            args=(studio --host "${HOST}" --port "${PORT}")
-        fi
+        echo "==> Will autoload ${LAST_MODEL_FILE} after Studio is healthy"
+    elif ! _autoload_enabled; then
+        echo "==> Autoload disabled (UNSLOTH_AUTOLOAD_LAST_MODEL=${AUTOLOAD})"
     else
-        if ! _autoload_enabled; then
-            echo "==> Autoload disabled (UNSLOTH_AUTOLOAD_LAST_MODEL=${AUTOLOAD})"
-        else
-            echo "==> No last-model file at ${LAST_MODEL_FILE}; starting Studio without a model"
-        fi
-        args=(studio --host "${HOST}" --port "${PORT}")
+        echo "==> No last-model file at ${LAST_MODEL_FILE}; starting Studio without a model"
     fi
 
-    # Tee logs for the watcher (API key / Model loaded lines) while keeping console output.
+    # Tee logs for the watcher while keeping console output.
     set +e
     "${UNSLOTH}" "${args[@]}" > >(tee -a "${LOG_FILE}") 2> >(tee -a "${LOG_FILE}" >&2) &
     STUDIO_PID=$!

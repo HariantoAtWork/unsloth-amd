@@ -1,5 +1,6 @@
 services:
   unsloth-amd:
+    container_name: unsloth-amd
     build: .
     image: harianto/unsloth-amd:latest
     devices:
@@ -21,20 +22,35 @@ services:
     restart: unless-stopped
 
   unsloth-planner:
-    image: harianto/unsloth-amd:latest
+    container_name: unsloth-planner
+    build:
+      context: .
+      dockerfile: Dockerfile.planner
+    image: harianto/unsloth-planner:latest
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    # Bind-mount the full DRM tree + KFD so rocminfo / install.sh see the GPU (devices: /dev/dri is a directory).
     volumes:
       - unsloth-planner-home:/root/.unsloth
-      - unsloth-local:/root/.local
+      - unsloth-planner-local:/root/.local
       - unsloth-cache:/root/.cache
-    restart: unless-stopped
+    shm_size: "2gb"
+    # restart: unless-stopped
 
   unsloth-builder:
+    container_name: unsloth-builder
     image: harianto/unsloth-amd:latest
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    # Bind-mount the full DRM tree + KFD so rocminfo / install.sh see the GPU (devices: /dev/dri is a directory).
     volumes:
       - unsloth-builder-home:/root/.unsloth
-      - unsloth-local:/root/.local
+      - unsloth-builder-local:/root/.local
       - unsloth-cache:/root/.cache
-    restart: unless-stopped
+    shm_size: "2gb"
+    # restart: unless-stopped
 
 
 

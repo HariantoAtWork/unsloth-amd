@@ -5,7 +5,7 @@ ARG ROCM_VERSION=7.2.3
 
 ENV DEBIAN_FRONTEND=noninteractive \
     ROCM_PATH=/opt/rocm \
-    PATH="/opt/rocm/bin:/root/.local/bin:${PATH}" \
+    PATH="/opt/rocm/bin:/root/.bun/bin:/root/.local/bin:${PATH}" \
     UNSLOTH_STUDIO_HOST=0.0.0.0 \
     UNSLOTH_STUDIO_PORT=8888
 
@@ -17,6 +17,7 @@ RUN set -eux; \
         ca-certificates \
         curl \
         expect \
+        unzip \
         wget \
         gnupg2 \
         git \
@@ -47,6 +48,12 @@ RUN set -eux; \
         rocblas-dev \
         amd-container-toolkit; \
     rm -rf /var/lib/apt/lists/*
+
+# Install Bun and upgrade to the canary channel (main-branch builds).
+RUN set -eux; \
+    curl -fsSL https://bun.sh/install | bash; \
+    bun upgrade --canary; \
+    bun --revision
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY docker-studio.sh /usr/local/bin/docker-studio.sh

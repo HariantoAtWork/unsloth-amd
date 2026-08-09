@@ -17,15 +17,11 @@ services:
     ports:
       - "${UNSLOTH_STUDIO_PORT:-8888}:${UNSLOTH_STUDIO_PORT:-8888}"
     environment:
-      UNSLOTH_STUDIO_HOST: "0.0.0.0"
+      UNSLOTH_STUDIO_HOST: "${UNSLOTH_STUDIO_HOST:-0.0.0.0}"
       UNSLOTH_STUDIO_PORT: "${UNSLOTH_STUDIO_PORT:-8888}"
-      # Set to 0 to skip reloading ~/.unsloth/.docker-last-model.json on restart.
-      # UNSLOTH_AUTOLOAD_LAST_MODEL: "0"
-      # Optional: password for JWT login if the bootstrap password was rotated.
-      UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
-      # Optional: pin a stable Studio API key (otherwise one is created once at
-      # ~/.unsloth/.docker-api-key and reused on every restart).
-      # UNSLOTH_API_KEY: ""
+      UNSLOTH_STUDIO_PASSWORD: "${UNSLOTH_STUDIO_PASSWORD:-}"
+      UNSLOTH_API_KEY: "${UNSLOTH_API_KEY:-}"
+      UNSLOTH_AUTOLOAD_LAST_MODEL: "${UNSLOTH_AUTOLOAD_LAST_MODEL:-1}"
     restart: unless-stopped
 
   unsloth-planner:
@@ -41,11 +37,8 @@ services:
       - unsloth-cache:/root/.cache
     shm_size: "2gb"
     environment:
-      UNSLOTH_STUDIO_HOST: "0.0.0.0"
-      UNSLOTH_STUDIO_PORT: "${UNSLOTH_STUDIO_PORT:-8888}"
-      # UNSLOTH_AUTOLOAD_LAST_MODEL: "0"
       UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
-    # restart: unless-stopped
+    restart: unless-stopped
 
   unsloth-builder:
     container_name: unsloth-builder
@@ -60,11 +53,8 @@ services:
       - unsloth-cache:/root/.cache
     shm_size: "2gb"
     environment:
-      UNSLOTH_STUDIO_HOST: "0.0.0.0"
-      UNSLOTH_STUDIO_PORT: "${UNSLOTH_STUDIO_PORT:-8888}"
-      # UNSLOTH_AUTOLOAD_LAST_MODEL: "0"
       UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
-    # restart: unless-stopped
+    restart: unless-stopped
 
 
 

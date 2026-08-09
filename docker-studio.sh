@@ -127,10 +127,49 @@ _wait_for_health() {
     return 1
 }
 
+# Unsloth treats UNSLOTH_STUDIO_PASSWORD as initial --password only. Once the
+# admin has finalized a password (must_change_password=0), re-supplying the env
+# aborts startup. Keep a copy for API login, then clear the env before launch.
+_LOGIN_PASSWORD="${UNSLOTH_STUDIO_PASSWORD:-}"
+
+_admin_password_finalized() {
+    local db="${HOME}/.unsloth/studio/auth/auth.db"
+    [[ -f "${db}" ]] || return 1
+    python3 - "${db}" <<'PY'
+import sqlite3, sys
+db = sys.argv[1]
+try:
+    conn = sqlite3.connect(db)
+    row = conn.execute(
+        "SELECT must_change_password FROM auth_user WHERE username = ?",
+        ("unsloth",),
+    ).fetchone()
+    conn.close()
+except Exception:
+    sys.exit(1)
+# Finalized when the admin row exists and must_change_password is falsy.
+sys.exit(0 if row is not None and not row[0] else 1)
+PY
+}
+
+_clear_studio_password_env_if_finalized() {
+    if [[ -z "${UNSLOTH_STUDIO_PASSWORD:-}" ]]; then
+        return 0
+    fi
+    if _admin_password_finalized; then
+        echo "==> Admin password already set; clearing UNSLOTH_STUDIO_PASSWORD for Studio launch (kept for API login)"
+        unset UNSLOTH_STUDIO_PASSWORD
+    fi
+}
+
 _bootstrap_password() {
     local f="${HOME}/.unsloth/studio/auth/.bootstrap_password"
     if [[ -n "${UNSLOTH_STUDIO_PASSWORD:-}" ]]; then
         printf '%s' "${UNSLOTH_STUDIO_PASSWORD}"
+        return 0
+    fi
+    if [[ -n "${_LOGIN_PASSWORD}" ]]; then
+        printf '%s' "${_LOGIN_PASSWORD}"
         return 0
     fi
     if [[ -r "${f}" ]]; then
@@ -465,6 +504,8 @@ _build_and_start_studio() {
     # Always use plain `studio` (not `studio run`). `studio run` mints a new
     # "cli" API key on every boot; we keep a stable key on the volume instead.
     local args=(studio --host "${HOST}" --port "${PORT}")
+
+    _clear_studio_password_env_if_finalized
 
     if _autoload_enabled && [[ -f "${LAST_MODEL_FILE}" ]]; then
         echo "==> Will autoload ${LAST_MODEL_FILE} after Studio is healthy"

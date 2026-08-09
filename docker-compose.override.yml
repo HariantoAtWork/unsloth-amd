@@ -7,3 +7,9 @@ services:
   unsloth-amd:
     networks:
       - cloudflared
+  unsloth-planner:
+    networks:
+      - cloudflared
+  unsloth-builder:
+    networks:
+      - cloudflared

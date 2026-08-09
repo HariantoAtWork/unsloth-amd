@@ -1,6 +1,7 @@
 services:
   unsloth-amd:
     build: .
+    image: harianto/unsloth-amd:latest
     devices:
       - /dev/kfd
       - /dev/dri
@@ -8,6 +9,7 @@ services:
     volumes:
       - unsloth-home:/root/.unsloth
       - unsloth-local:/root/.local
+      - unsloth-cache:/root/.cache
     shm_size: "2gb"
     stdin_open: true
     tty: true
@@ -18,8 +20,39 @@ services:
       UNSLOTH_STUDIO_PORT: "${UNSLOTH_STUDIO_PORT:-8888}"
     restart: unless-stopped
 
+  unsloth-planner:
+    image: harianto/unsloth-amd:latest
+    volumes:
+      - unsloth-planner-home:/root/.unsloth
+      - unsloth-local:/root/.local
+      - unsloth-cache:/root/.cache
+    restart: unless-stopped
+
+  unsloth-builder:
+    image: harianto/unsloth-amd:latest
+    volumes:
+      - unsloth-builder-home:/root/.unsloth
+      - unsloth-local:/root/.local
+      - unsloth-cache:/root/.cache
+    restart: unless-stopped
+
+
+
 volumes:
+  unsloth-cache:
+    name: unsloth-cache
+  # -- Main
   unsloth-home:
     name: unsloth-home
   unsloth-local:
     name: unsloth-local
+  # -- Planner
+  unsloth-planner-home:
+    name: unsloth-planner-home
+  unsloth-planner-local:
+    name: unsloth-planner-local
+  # -- Builder
+  unsloth-builder-home:
+    name: unsloth-builder-home
+  unsloth-builder-local:
+    name: unsloth-builder-local

@@ -36,11 +36,25 @@ services:
       UNSLOTH_API_KEY: "${UNSLOTH_API_KEY:-}"
       UNSLOTH_AUTOLOAD_LAST_MODEL: "${UNSLOTH_AUTOLOAD_LAST_MODEL:-1}"
       # UNSLOTH_INSTALL_ROOT / UNSLOTH_DATA_ROOT default to the mount paths below
+    # Healthy once shared install + gfx1151 torch pin exist (so planner/builder can start).
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "test -x /opt/unsloth-install/studio/unsloth_studio/bin/unsloth && test -f /opt/unsloth-install/.docker-install-complete && test -f /opt/unsloth-install/.docker-torch-pin-complete",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 40
+      start_period: 45m
     restart: unless-stopped
 
   unsloth-planner:
     container_name: unsloth-planner
     image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
+    depends_on:
+      unsloth-amd:
+        condition: service_healthy
     devices:
       - /dev/kfd
       - /dev/dri
@@ -57,6 +71,9 @@ services:
   unsloth-builder:
     container_name: unsloth-builder
     image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
+    depends_on:
+      unsloth-amd:
+        condition: service_healthy
     devices:
       - /dev/kfd
       - /dev/dri

@@ -36,9 +36,14 @@ All three mount the same `unsloth-install`, `unsloth-cache`, and `unsloth-share`
 
 ## First boot order
 
-1. Start one service that has GPU access (usually `unsloth-amd`).
-2. Let entrypoint run `install.sh` into `unsloth-install`.
-3. Start planner/builder — they should see the shared install and skip a full reinstall.
+1. `docker compose up -d` starts **unsloth-amd** first.
+2. Planner/builder use `depends_on: condition: service_healthy` and wait until amd has:
+   - `/opt/unsloth-install/studio/unsloth_studio/bin/unsloth`
+   - `.docker-install-complete`
+   - `.docker-torch-pin-complete`
+3. Plain `depends_on` (without `service_healthy`) only waits for the container to *start*, not for install/pin to finish — avoid that race on a shared venv.
+
+You can still start a single service alone (`docker compose up -d unsloth-planner`); Compose will pull in `unsloth-amd` as a dependency.
 
 ## Reset
 

@@ -1,3 +1,10 @@
+# Volume layout (sibling paths — no nested overlays on ~/.unsloth):
+#   /opt/unsloth-install  shared Unsloth version (venv, llama.cpp, helper venvs)
+#   /data/unsloth         per-service save data (auth, studio.db, runs, keys)
+#   /root/.cache          shared download cache
+#   /root/.local/share    shared uv/python tooling
+# Entrypoint rebuilds ~/.unsloth as symlinks into install + data on every start.
+
 services:
   unsloth-amd:
     container_name: unsloth-amd
@@ -8,8 +15,13 @@ services:
       - /dev/dri
     # Bind-mount the full DRM tree + KFD so rocminfo / install.sh see the GPU (devices: /dev/dri is a directory).
     volumes:
-      - unsloth-home:/root/.unsloth
-      - unsloth-local:/root/.local
+      # Shared Unsloth version (venv, llama.cpp, helper venvs, install markers)
+      - unsloth-install:/opt/unsloth-install
+      # This service only: auth, studio.db, runs/exports, API key, last model
+      - unsloth-amd-data:/data/unsloth
+      # Shared uv-managed Python / Unsloth launcher assets under ~/.local/share
+      - unsloth-share:/root/.local/share
+      # Shared HF / pip / uv download cache
       - unsloth-cache:/root/.cache
     shm_size: "2gb"
     stdin_open: true
@@ -24,6 +36,7 @@ services:
       UNSLOTH_STUDIO_PASSWORD: "${UNSLOTH_STUDIO_PASSWORD:-}"
       UNSLOTH_API_KEY: "${UNSLOTH_API_KEY:-}"
       UNSLOTH_AUTOLOAD_LAST_MODEL: "${UNSLOTH_AUTOLOAD_LAST_MODEL:-1}"
+      # UNSLOTH_INSTALL_ROOT / UNSLOTH_DATA_ROOT default to the mount paths below
     restart: unless-stopped
 
   unsloth-planner:
@@ -34,9 +47,10 @@ services:
       - /dev/dri
     # Bind-mount the full DRM tree + KFD so rocminfo / install.sh see the GPU (devices: /dev/dri is a directory).
     volumes:
-      - unsloth-planner-home:/root/.unsloth
-      - unsloth-planner-local:/root/.local
-      - unsloth-cache:/root/.cache
+      - unsloth-install:/opt/unsloth-install          # shared install (same as amd/builder)
+      - unsloth-planner-data:/data/unsloth            # planner save data only
+      - unsloth-share:/root/.local/share              # shared ~/.local/share
+      - unsloth-cache:/root/.cache                    # shared download cache
     shm_size: "2gb"
     environment:
       UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
@@ -50,31 +64,30 @@ services:
       - /dev/dri
     # Bind-mount the full DRM tree + KFD so rocminfo / install.sh see the GPU (devices: /dev/dri is a directory).
     volumes:
-      - unsloth-builder-home:/root/.unsloth
-      - unsloth-builder-local:/root/.local
-      - unsloth-cache:/root/.cache
+      - unsloth-install:/opt/unsloth-install          # shared install (same as amd/planner)
+      - unsloth-builder-data:/data/unsloth            # builder save data only
+      - unsloth-share:/root/.local/share              # shared ~/.local/share
+      - unsloth-cache:/root/.cache                    # shared download cache
     shm_size: "2gb"
     environment:
       UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
     restart: unless-stopped
 
-
-
+# Named volumes (explicit `name:` keeps them stable across compose project renames).
 volumes:
+  # One Unsloth install for every service — do not put auth/db/runs here.
+  unsloth-install:
+    name: unsloth-install
+  # Hugging Face / pip / uv caches shared by all services.
   unsloth-cache:
     name: unsloth-cache
-  # -- Main
-  unsloth-home:
-    name: unsloth-home
-  unsloth-local:
-    name: unsloth-local
-  # -- Planner
-  unsloth-planner-home:
-    name: unsloth-planner-home
-  unsloth-planner-local:
-    name: unsloth-planner-local
-  # -- Builder
-  unsloth-builder-home:
-    name: unsloth-builder-home
-  unsloth-builder-local:
-    name: unsloth-builder-local
+  # Shared uv Python + launcher files under /root/.local/share.
+  unsloth-share:
+    name: unsloth-share
+  # Per-service Studio state (isolated passwords, DB, last model, API keys).
+  unsloth-amd-data:
+    name: unsloth-amd-data
+  unsloth-planner-data:
+    name: unsloth-planner-data
+  unsloth-builder-data:
+    name: unsloth-builder-data

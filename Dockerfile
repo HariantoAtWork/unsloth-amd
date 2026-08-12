@@ -1,19 +1,28 @@
 FROM ubuntu:24.04
 
-# Match PyTorch / Unsloth supported ROCm stacks; override when bumping host ROCm.
-ARG ROCM_VERSION=7.2.3
+# Two different version schemes — do not conflate them:
+#   ROCM_VERSION       → apt channel on repo.radeon.com/rocm/apt/<ver>  (e.g. 7.2.4)
+#   TORCH_ROCM_VERSION → PyTorch wheel tag +rocm<ver> from AMD gfx1151 index (e.g. 7.12.0)
+# There is no apt path "7.12" / "7.12.0"; latest 7.x apt channels are 7.2.x.
+ARG ROCM_VERSION=7.2.4
+ARG TORCH_ROCM_VERSION=7.12.0
 
 # Fresh Unsloth install.sh currently pulls torch 2.11+rocm7.13, which SIGSEGVs on
 # gfx1151 (Radeon 8060S). Highest verified-good stack on this host is
 # torch 2.10.0+rocm7.12.0 from AMD's gfx1151 wheel index (7.13 still segfaults).
 # Image tag convention: harianto/unsloth-amd:1.0.0-torch2.10.0-rocm7.12.0
-ARG UNSLOTH_TORCH=2.10.0+rocm7.12.0
-ARG UNSLOTH_TORCHVISION=0.25.0+rocm7.12.0
+ARG UNSLOTH_TORCH=2.10.0+rocm${TORCH_ROCM_VERSION}
+ARG UNSLOTH_TORCHVISION=0.25.0+rocm${TORCH_ROCM_VERSION}
 ARG UNSLOTH_TORCH_INDEX=https://repo.amd.com/rocm/whl/gfx1151/
 
+# bitsandbytes has no prebuilt for TheRock/torch +rocm7.12 (and 0.49.x maps
+# "7.12" → "82" via major*10+minor). We alias missing .so tags to the shipped
+# rocm72 binary (matches apt ROCM_VERSION, includes gfx1151). BNB_ROCM_VERSION
+# is honoured by bitsandbytes >= 0.50; 0.49.x needs the aliases.
 ENV DEBIAN_FRONTEND=noninteractive \
     ROCM_PATH=/opt/rocm \
     PATH="/opt/rocm/bin:/root/.bun/bin:/root/.local/bin:${PATH}" \
+    BNB_ROCM_VERSION=72 \
     UNSLOTH_STUDIO_HOST=0.0.0.0 \
     UNSLOTH_STUDIO_PORT=8888 \
     UNSLOTH_TORCH=${UNSLOTH_TORCH} \
@@ -128,8 +137,35 @@ _pin_torch() {
     printf '%s\n' "${TORCH_SPEC}" > "${MARKER}"
 }
 
+_ensure_bitsandbytes_rocm() {
+    # PyTorch reports hip/ROCm 7.12; wheels only ship libbitsandbytes_rocm{62..72}.
+    # bitsandbytes 0.49.x mis-tags 7.12 as "82" (major*10+minor) and rejects
+    # BNB_CUDA_VERSION on ROCm. Alias missing tags to the shipped rocm72 .so.
+    # bitsandbytes >= 0.50 also honours BNB_ROCM_VERSION.
+    export BNB_ROCM_VERSION="${BNB_ROCM_VERSION:-72}"
+
+    local site bnb_dir
+    site="$("${PY}" -c 'import site; print(site.getsitepackages()[0])')"
+    bnb_dir="${site}/bitsandbytes"
+    local src="${bnb_dir}/libbitsandbytes_rocm${BNB_ROCM_VERSION}.so"
+    if [[ ! -f "${src}" ]]; then
+        echo "==> bitsandbytes: missing ${src}; skip ROCm .so aliases" >&2
+        return 0
+    fi
+
+    local tag
+    for tag in 82 712; do
+        local dst="${bnb_dir}/libbitsandbytes_rocm${tag}.so"
+        if [[ -L "${dst}" || ! -e "${dst}" ]]; then
+            ln -sfn "libbitsandbytes_rocm${BNB_ROCM_VERSION}.so" "${dst}"
+            echo "==> bitsandbytes: aliased $(basename "${dst}") -> rocm${BNB_ROCM_VERSION}"
+        fi
+    done
+}
+
 _pin_torch
 _prefer_wheel_rocm_libs
+_ensure_bitsandbytes_rocm
 exec /usr/local/bin/docker-studio.sh
 EOF
 

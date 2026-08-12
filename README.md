@@ -83,10 +83,10 @@ Run (adjust volume path if you want a bind mount instead of a named volume):
 docker run --rm -it \
   --shm-size=2g \
   -p 8888:8888 \
+  --device /dev/kfd \
+  --device /dev/dri \
   -v unsloth-install:/opt/unsloth-install \
   -v unsloth-amd-data:/data/unsloth \
-  -v /dev/kfd:/dev/kfd \
-  -v /dev/dri:/dev/dri \
   --group-add video --group-add render \
   unsloth-amd:local
 ```
@@ -97,15 +97,14 @@ Then either rely on the default entrypoint (automatic first install) or override
 docker run --rm -it \
   --shm-size=2g \
   -e UNSLOTH_SKIP_AUTO_INSTALL=1 \
+  --device /dev/kfd \
+  --device /dev/dri \
   -v unsloth-install:/opt/unsloth-install \
   -v unsloth-amd-data:/data/unsloth \
-  -v /dev/kfd:/dev/kfd \
-  -v /dev/dri:/dev/dri \
   --group-add video --group-add render \
   unsloth-amd:local \
   bash
-```
-## ROCm version in the image
+```## ROCm version in the image
 
 The Dockerfile `ARG ROCM_VERSION` (default `7.2.3`) selects the ROCm apt suite used for `rocm-core` and related packages. Override when building:
 
@@ -136,7 +135,7 @@ Align this with a ROCm stack that matches PyTorch wheels Unsloth can pull for yo
 Then start the stack again to trigger a fresh installer run (unless `UNSLOTH_SKIP_AUTO_INSTALL=1` is set). Volume map: [Volume layout](docs/wiki/Volume-layout.md).
 ## Troubleshooting
 
-- **Installer chooses CPU PyTorch:** two common causes: (1) **ROCm tools not on `PATH` inside the image** — `install.sh` uses `command -v rocminfo`; this image prepends `/opt/rocm/bin`. (2) **GPU device nodes not visible in the container** — Compose **bind-mounts** `/dev/dri` and `/dev/kfd` (a bare `devices: /dev/dri` entry is a directory, not a single device, and often does not pass your GPU). Rebuild the image after Dockerfile changes, then check:
+- **Installer chooses CPU PyTorch:** two common causes: (1) **ROCm tools not on `PATH` inside the image** — `install.sh` uses `command -v rocminfo`; this image prepends `/opt/rocm/bin`. (2) **GPU device nodes not visible in the container** — Compose passes `/dev/kfd` and `/dev/dri` via `devices:`. Rebuild the image after Dockerfile changes, then check:
   ```bash
   docker compose run --rm unsloth-amd bash -lc 'rocminfo | head -40'
   ```

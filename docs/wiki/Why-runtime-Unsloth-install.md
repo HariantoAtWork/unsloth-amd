@@ -12,7 +12,7 @@ Unsloth is installed the **first time a container starts**, by `docker-entrypoin
 
 `install.sh` (and Unsloth’s stack detection) expects real AMD device nodes — typically `/dev/kfd` and `/dev/dri` — plus ROCm tools on `PATH` (`rocminfo`, etc.).
 
-Those devices are attached at **run** time via Compose (`devices:` / bind mounts). A normal `docker build` does **not** see them, so a build-time install tends to pick the wrong stack (e.g. CPU PyTorch) or fail GPU detection.
+Those devices are attached at **run** time via Compose `devices:` (e.g. `/dev/kfd`, `/dev/dri`). A normal `docker build` does **not** see them, so a build-time install tends to pick the wrong stack (e.g. CPU PyTorch) or fail GPU detection.
 
 That is why the entrypoint talks about reinstall “needs GPU /dev nodes”, and why Compose passes the DRM/KFD devices into every service.
 

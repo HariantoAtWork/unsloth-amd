@@ -13,7 +13,6 @@ services:
     devices:
       - /dev/kfd
       - /dev/dri
-    # Bind-mount the full DRM tree + KFD so rocminfo / install.sh see the GPU (devices: /dev/dri is a directory).
     volumes:
       # Shared Unsloth version (venv, llama.cpp, helper venvs, install markers)
       - unsloth-install:/opt/unsloth-install
@@ -45,7 +44,6 @@ services:
     devices:
       - /dev/kfd
       - /dev/dri
-    # Bind-mount the full DRM tree + KFD so rocminfo / install.sh see the GPU (devices: /dev/dri is a directory).
     volumes:
       - unsloth-install:/opt/unsloth-install          # shared install (same as amd/builder)
       - unsloth-planner-data:/data/unsloth            # planner save data only
@@ -62,7 +60,6 @@ services:
     devices:
       - /dev/kfd
       - /dev/dri
-    # Bind-mount the full DRM tree + KFD so rocminfo / install.sh see the GPU (devices: /dev/dri is a directory).
     volumes:
       - unsloth-install:/opt/unsloth-install          # shared install (same as amd/planner)
       - unsloth-builder-data:/data/unsloth            # builder save data only

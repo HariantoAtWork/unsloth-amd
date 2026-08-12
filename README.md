@@ -2,6 +2,8 @@
 
 Ubuntu 24.04 image with ROCm apt packages, GPU device passthrough, and the official Unsloth Studio installer.
 
+**Design notes (why entrypoint install, volume layout):** [docs/wiki/Home.md](docs/wiki/Home.md)
+
 ## Requirements
 
 - Linux host with an AMD GPU and a working ROCm/AMD stack on the **host** (this image does not install kernel drivers).
@@ -10,7 +12,7 @@ Ubuntu 24.04 image with ROCm apt packages, GPU device passthrough, and the offic
 
 ## Automatic first start (default)
 
-**`docker compose build`** / **`docker build`** only create the image (Ubuntu + ROCm/apt stack in the Dockerfile). They do **not** run `install.sh` or install Unsloth. The Unsloth install runs the **first time a container starts** (entrypoint), not during the build.
+**`docker compose build`** / **`docker build`** only create the image (Ubuntu + ROCm/apt stack in the Dockerfile). They do **not** run `install.sh` or install Unsloth. The Unsloth install runs the **first time a container starts** (entrypoint), not during the build — the installer needs GPU device nodes that exist at run time, not during `docker build`. Details: [Why runtime Unsloth install](docs/wiki/Why-runtime-Unsloth-install.md).
 
 From this directory:
 
@@ -22,7 +24,7 @@ docker compose up --build -d
 
 On the **first** start, **`docker-entrypoint.sh`** **`curl`**s **`https://unsloth.ai/install.sh`** to a temp file and runs **`sh`** under **`expect`**. The installer’s final **`Start Unsloth Studio now? [Y/n]`** is read from **`/dev/tty`**, so piping **`n`** on stdin does not work; **expect** drives a pseudo-TTY and sends **`n`** so Studio is not started inside the installer (your **`CMD`** starts Studio). The image installs the **`expect`** package for this. See **`docker-entrypoint.sh`**. Optional: **`patch.sh`** still documents the **`--no-launch`** sed/awk patch if you prefer not to use **expect**.
 
-A marker file is created at `~/.unsloth/.docker-install-complete` inside the container (backed by the `unsloth-home` volume) so this only runs once.
+A marker is written at `/opt/unsloth-install/.docker-install-complete` (shared `unsloth-install` volume) so the full installer only runs once for the whole stack. Save data lives on per-service `*-data` volumes; see [Volume layout](docs/wiki/Volume-layout.md).
 
 After install (and on later boots), the container runs **Unsloth Studio** bound to `0.0.0.0` so it can be reached from the host. By default Compose publishes **`8888`** (`http://localhost:8888`). Override the host/container port with `UNSLOTH_STUDIO_PORT` when invoking Compose (the same value is passed through to Studio).
 
@@ -38,7 +40,7 @@ Open a shell after install:
 docker compose exec unsloth-amd bash
 ```
 
-Unsloth Studio’s venv (after a successful install) lives under `~/.unsloth/studio/unsloth_studio` (installer layout). Ensure `PATH` includes `~/.local/bin` for the `unsloth` / `uv` shims the installer adds (the image already prepends `/root/.local/bin`).
+Unsloth Studio’s venv (after a successful install) lives under `/opt/unsloth-install/studio/unsloth_studio` (symlinked as `~/.unsloth/studio/unsloth_studio`). Ensure `PATH` includes `~/.local/bin` for the `unsloth` shim the entrypoint maintains.
 
 To run a shell instead of Studio, override the command, for example: `docker compose run --rm unsloth-amd bash`.
 
@@ -81,7 +83,8 @@ Run (adjust volume path if you want a bind mount instead of a named volume):
 docker run --rm -it \
   --shm-size=2g \
   -p 8888:8888 \
-  -v unsloth-home:/root/.unsloth \
+  -v unsloth-install:/opt/unsloth-install \
+  -v unsloth-amd-data:/data/unsloth \
   -v /dev/kfd:/dev/kfd \
   -v /dev/dri:/dev/dri \
   --group-add video --group-add render \
@@ -94,14 +97,14 @@ Then either rely on the default entrypoint (automatic first install) or override
 docker run --rm -it \
   --shm-size=2g \
   -e UNSLOTH_SKIP_AUTO_INSTALL=1 \
-  -v unsloth-home:/root/.unsloth \
+  -v unsloth-install:/opt/unsloth-install \
+  -v unsloth-amd-data:/data/unsloth \
   -v /dev/kfd:/dev/kfd \
   -v /dev/dri:/dev/dri \
   --group-add video --group-add render \
   unsloth-amd:local \
   bash
 ```
-
 ## ROCm version in the image
 
 The Dockerfile `ARG ROCM_VERSION` (default `7.2.3`) selects the ROCm apt suite used for `rocm-core` and related packages. Override when building:
@@ -114,28 +117,30 @@ Align this with a ROCm stack that matches PyTorch wheels Unsloth can pull for yo
 
 ## Resetting / reinstalling Unsloth
 
-- Remove the marker and optionally wipe the volume:
+- Remove the shared install marker (triggers reinstall on next start if the venv is also gone/broken):
 
   ```bash
-  docker compose exec unsloth-amd rm -f /root/.unsloth/.docker-install-complete
+  docker compose exec unsloth-amd rm -f /opt/unsloth-install/.docker-install-complete
   ```
 
-- Or remove the named volume (destructive):
+- Or remove named volumes (destructive):
 
   ```bash
   docker compose down
-  docker volume rm unsloth-home unsloth-local
+  # Full Unsloth reinstall for all services:
+  docker volume rm unsloth-install
+  # One service's Studio state only (example):
+  # docker volume rm unsloth-amd-data
   ```
 
-Then start the stack again to trigger a fresh installer run (unless `UNSLOTH_SKIP_AUTO_INSTALL=1` is set).
-
+Then start the stack again to trigger a fresh installer run (unless `UNSLOTH_SKIP_AUTO_INSTALL=1` is set). Volume map: [Volume layout](docs/wiki/Volume-layout.md).
 ## Troubleshooting
 
 - **Installer chooses CPU PyTorch:** two common causes: (1) **ROCm tools not on `PATH` inside the image** — `install.sh` uses `command -v rocminfo`; this image prepends `/opt/rocm/bin`. (2) **GPU device nodes not visible in the container** — Compose **bind-mounts** `/dev/dri` and `/dev/kfd` (a bare `devices: /dev/dri` entry is a directory, not a single device, and often does not pass your GPU). Rebuild the image after Dockerfile changes, then check:
   ```bash
   docker compose run --rm unsloth-amd bash -lc 'rocminfo | head -40'
   ```
-  You should see a `Name: gfx…` GPU agent, not only the CPU. If you still get CPU wheels, remove the install marker (and optionally the `unsloth-home` volume) and bring the stack up again so `install.sh` re-runs with GPU visible.
+  You should see a `Name: gfx…` GPU agent, not only the CPU. If you still get CPU wheels, remove the install marker (and optionally the `unsloth-install` volume) and bring the stack up again so `install.sh` re-runs with GPU visible.
 - **`/dev/dri` or `/dev/kfd` permission errors:** Compose includes `group_add: [video, render]`; if ACLs or unusual GIDs persist on your host, add numeric supplementary GIDs that match the host’s `getent group video render` output.
-- **Second `docker compose up -d` breaks with `unsloth: not found`:** the install-complete marker lives on **`unsloth-home`** (`/root/.unsloth`), but the **`unsloth` shim** is under **`/root/.local/bin`**. If **`/root/.local` is not on a volume**, a **new container** keeps the marker (volume) while the shim is gone (ephemeral layer) — install is skipped and **`CMD` fails**. Compose mounts **`unsloth-local:/root/.local`** so the shim survives restarts. The entrypoint also **drops the marker and re-runs the installer** if the marker exists but neither shim nor Studio venv binary is present (needs **`/dev/dri`** and **`/dev/kfd`** again).
+- **`image:` alone does not install Unsloth:** planner/builder reuse the same image layers, but Unsloth lives on the shared `unsloth-install` volume. See [Why runtime Unsloth install](docs/wiki/Why-runtime-Unsloth-install.md).
 - **OOM or dataloader issues:** `shm_size` is set to 2 GB in Compose; increase if needed.

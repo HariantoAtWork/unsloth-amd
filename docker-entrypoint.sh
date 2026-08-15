@@ -7,11 +7,14 @@ export DEBIAN_FRONTEND=noninteractive CI=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_N
 # Sibling layout (no nested Docker volume overlays):
 #   INSTALL_ROOT  shared Unsloth version (venv, llama.cpp, helper venvs)
 #   DATA_ROOT     per-service save data (auth, db, runs, API keys, last model)
-#   ~/.unsloth    ephemeral tree of symlinks rebuilt on every start
+#   ~/.unsloth    symlink → INSTALL_ROOT so `curl | sh` inside the container
+#                 updates the volume (do not mount ~/.unsloth itself)
 INSTALL_ROOT="${UNSLOTH_INSTALL_ROOT:-/opt/unsloth-install}"
 DATA_ROOT="${UNSLOTH_DATA_ROOT:-/data/unsloth}"
 UNSLOTH_HOME="${HOME}/.unsloth"
 INSTALL_MARKER="${INSTALL_ROOT}/.docker-install-complete"
+export TMPDIR="${TMPDIR:-${INSTALL_ROOT}/tmp}"
+mkdir -p "${TMPDIR}"
 
 _unsloth_bin() {
     local c
@@ -45,48 +48,34 @@ _purge_data_from_install() {
     done
 }
 
-# Rebuild ~/.unsloth as symlinks into shared install + per-service data.
+# ~/.unsloth → shared install; per-service data is linked from that tree to DATA_ROOT.
+# Same /data/unsloth path in every container; each service mounts a different volume there.
 _link_unsloth_layout() {
     local name f
 
-    mkdir -p "${INSTALL_ROOT}/studio" "${DATA_ROOT}/studio" "${HOME}/.local/bin"
+    mkdir -p "${INSTALL_ROOT}/studio" "${INSTALL_ROOT}/llama.cpp" "${INSTALL_ROOT}/tmp" \
+        "${DATA_ROOT}/studio" "${HOME}/.local/bin"
 
-    # Ephemeral junction tree (must not be a volume mount).
     if [[ -L "${UNSLOTH_HOME}" ]]; then
         rm -f "${UNSLOTH_HOME}"
     elif [[ -d "${UNSLOTH_HOME}" ]]; then
         rm -rf "${UNSLOTH_HOME}"
     fi
-    mkdir -p "${UNSLOTH_HOME}/studio"
+    ln -sfn "${INSTALL_ROOT}" "${UNSLOTH_HOME}"
 
-    # --- shared install ---
-    mkdir -p "${INSTALL_ROOT}/llama.cpp"
-    ln -sfn "${INSTALL_ROOT}/llama.cpp" "${UNSLOTH_HOME}/llama.cpp"
+    _purge_data_from_install
 
-    for name in unsloth_studio .venv_t5_530 .venv_t5_550 assets share; do
-        mkdir -p "${INSTALL_ROOT}/studio/${name}"
-        ln -sfn "${INSTALL_ROOT}/studio/${name}" "${UNSLOTH_HOME}/studio/${name}"
-    done
-
-    # Install markers stay on the shared volume (one version for all containers).
-    ln -sfn "${INSTALL_ROOT}/.docker-install-complete" "${UNSLOTH_HOME}/.docker-install-complete"
-    ln -sfn "${INSTALL_ROOT}/.docker-torch-pin-complete" "${UNSLOTH_HOME}/.docker-torch-pin-complete"
-
-    # --- per-service data ---
     for name in auth exports outputs runs cache; do
         mkdir -p "${DATA_ROOT}/studio/${name}"
-        ln -sfn "${DATA_ROOT}/studio/${name}" "${UNSLOTH_HOME}/studio/${name}"
+        ln -sfn "${DATA_ROOT}/studio/${name}" "${INSTALL_ROOT}/studio/${name}"
     done
-
-    # File symlinks: creating through the link materialises the target on the data volume.
     for f in studio.db studio.pid; do
-        ln -sfn "${DATA_ROOT}/studio/${f}" "${UNSLOTH_HOME}/studio/${f}"
+        ln -sfn "${DATA_ROOT}/studio/${f}" "${INSTALL_ROOT}/studio/${f}"
     done
     for f in .docker-api-key .docker-last-model.json .docker-watcher-api-key; do
-        ln -sfn "${DATA_ROOT}/${f}" "${UNSLOTH_HOME}/${f}"
+        ln -sfn "${DATA_ROOT}/${f}" "${INSTALL_ROOT}/${f}"
     done
 
-    # PATH shim → shared venv (works even when ~/.local/bin is not volume-backed).
     if [[ -x "${INSTALL_ROOT}/studio/unsloth_studio/bin/unsloth" ]]; then
         ln -sfn "${INSTALL_ROOT}/studio/unsloth_studio/bin/unsloth" "${HOME}/.local/bin/unsloth"
     fi

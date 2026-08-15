@@ -2,14 +2,14 @@
 
 ## Idea
 
-Do **not** put install and save data in one Docker volume with nested overlays. Use **sibling** mounts; the entrypoint rebuilds `~/.unsloth` as symlinks on every start.
+Do **not** put install and save data in one Docker volume with nested overlays. Use **sibling** mounts. The entrypoint points `~/.unsloth` at the shared install so the official `curl | sh` updates the volume.
 
 ```text
 /opt/unsloth-install   ← shared volume  unsloth-install     (Unsloth version)
 /data/unsloth          ← per-service    unsloth-*-data      (save data)
 /root/.cache           ← shared         unsloth-cache
 /root/.local/share     ← shared         unsloth-share
-~/.unsloth             ← ephemeral symlink tree (not a volume)
+~/.unsloth             ← symlink to /opt/unsloth-install (not a volume mount)
 ```
 
 Defaults (override only if you change mount paths):
@@ -54,6 +54,6 @@ You can still start a single service alone (`docker compose up -d unsloth-planne
 
 ## Why not nest mounts under `~/.unsloth`?
 
-Mounting `home:/root/.unsloth` and then `install:/root/.unsloth/studio/unsloth_studio` **shadows** the subdirectory with an empty volume and forces awkward seeding. Sibling paths avoid that class of bug.
+Mounting `home:/root/.unsloth` and then `install:/root/.unsloth/studio/unsloth_studio` **shadows** the subdirectory with an empty volume and forces awkward seeding. Sibling paths plus a **symlink** (`~/.unsloth` → `/opt/unsloth-install`) avoid that class of bug. Per-service dirs (`studio/auth`, `studio.db`, API keys) are further symlinked from the install tree to `/data/unsloth`.
 
 See also: [Why runtime Unsloth install](Why-runtime-Unsloth-install.md).

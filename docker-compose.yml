@@ -3,7 +3,7 @@
 #   /data/unsloth         per-service save data (auth, studio.db, runs, keys)
 #   /root/.cache          shared download cache
 #   /root/.local/share    shared uv/python tooling
-# Entrypoint rebuilds ~/.unsloth as symlinks into install + data on every start.
+# Entrypoint points ~/.unsloth → /opt/unsloth-install so `curl | sh` updates the volume.
 
 services:
   unsloth-amd:
@@ -35,6 +35,9 @@ services:
       UNSLOTH_STUDIO_PASSWORD: "${UNSLOTH_STUDIO_PASSWORD:-}"
       UNSLOTH_API_KEY: "${UNSLOTH_API_KEY:-}"
       UNSLOTH_AUTOLOAD_LAST_MODEL: "${UNSLOTH_AUTOLOAD_LAST_MODEL:-1}"
+      # Official install.sh writes here (and TMPDIR for llama.cpp/whisper builds)
+      UNSLOTH_STUDIO_HOME: /opt/unsloth-install/studio
+      TMPDIR: /opt/unsloth-install/tmp
       # UNSLOTH_INSTALL_ROOT / UNSLOTH_DATA_ROOT default to the mount paths below
     # Healthy once shared install + gfx1151 torch pin exist (so planner/builder can start).
     healthcheck:

@@ -171,5 +171,9 @@ EOF
 
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/docker-studio.sh
 
+# install.sh uses these; keep them on the shared volume (set late so ROCm layers stay cached)
+ENV UNSLOTH_STUDIO_HOME=/opt/unsloth-install/studio \
+    TMPDIR=/opt/unsloth-install/tmp
+
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["/usr/local/bin/docker-studio-pinned.sh"]

@@ -2,7 +2,7 @@
 
 Ubuntu 24.04 image with ROCm apt packages, GPU device passthrough, and the official Unsloth Studio installer.
 
-**Design notes (why entrypoint install, volume layout):** [docs/wiki/Home.md](docs/wiki/Home.md)
+**Design notes (why entrypoint install, volume layout, updating Unsloth):** [docs/wiki/Home.md](docs/wiki/Home.md)
 
 ## Requirements
 
@@ -114,6 +114,26 @@ docker build --build-arg ROCM_VERSION=7.2.3 -t unsloth-amd:local .
 
 Align this with a ROCm stack that matches PyTorch wheels Unsloth can pull for your GPU.
 
+## Updating Unsloth
+
+Unsloth lives on the shared `unsloth-install` volume, not in the image. Update it **inside the `unsloth-amd` container** with the official installer — not on the host, and not with `docker compose build`.
+
+```bash
+docker compose stop unsloth-planner unsloth-builder
+docker compose exec unsloth-amd bash
+```
+
+Inside the container:
+
+```bash
+export PATH="/opt/rocm/bin:/root/.local/bin:${PATH}"
+rm -rf /root/.unsloth
+ln -sfn /opt/unsloth-install /root/.unsloth
+curl -fsSL https://unsloth.ai/install.sh | sh
+```
+
+Answer **n** to **Start Unsloth Studio now?**, then on the host `docker compose restart unsloth-amd` and `docker compose start unsloth-planner unsloth-builder`. Full notes (layout remap, torch pin): [Updating Unsloth](docs/wiki/Update-Unsloth.md).
+
 ## Resetting / reinstalling Unsloth
 
 - Remove the shared install marker (triggers reinstall on next start if the venv is also gone/broken):
@@ -133,6 +153,7 @@ Align this with a ROCm stack that matches PyTorch wheels Unsloth can pull for yo
   ```
 
 Then start the stack again to trigger a fresh installer run (unless `UNSLOTH_SKIP_AUTO_INSTALL=1` is set). Volume map: [Volume layout](docs/wiki/Volume-layout.md).
+
 ## Troubleshooting
 
 - **Installer chooses CPU PyTorch:** two common causes: (1) **ROCm tools not on `PATH` inside the image** — `install.sh` uses `command -v rocminfo`; this image prepends `/opt/rocm/bin`. (2) **GPU device nodes not visible in the container** — Compose passes `/dev/kfd` and `/dev/dri` via `devices:`. Rebuild the image after Dockerfile changes, then check:

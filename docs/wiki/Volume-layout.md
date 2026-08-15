@@ -47,6 +47,7 @@ You can still start a single service alone (`docker compose up -d unsloth-planne
 
 ## Reset
 
+- **Update** Unsloth in place (keep the volume): [Updating Unsloth](Update-Unsloth.md) — run `install.sh` inside `unsloth-amd`.
 - Reinstall Unsloth (all services): remove/recreate `unsloth-install` (and clear the install marker on that volume).
 - Wipe one service’s Studio state only: remove that service’s `*-data` volume.
 - Cache only: `unsloth-cache` / `unsloth-share`.

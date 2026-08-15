@@ -41,3 +41,4 @@ It does **not** share Unsloth itself until those containers also mount the share
 - `docker-entrypoint.sh` — layout symlinks + first-boot installer
 - `docker-studio-pinned.sh` (in the Dockerfile) — gfx1151 torch pin, then Studio
 - `docker-compose.yml` — GPU devices + install/data volumes
+- [Updating Unsloth](Update-Unsloth.md) — re-run `install.sh` inside `unsloth-amd`

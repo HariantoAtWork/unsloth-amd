@@ -13,7 +13,9 @@ services:
     labels:
       tsdproxy.enable: "true"
       tsdproxy.name: "unsloth-amd"
+      # tsdproxy.autodetect: "true"
       tsdproxy.port.1: "443/https:8888/http"
+      # tsdproxy.container_port: "8888"
   unsloth-planner:
     networks:
       - cloudflared
@@ -21,7 +23,8 @@ services:
     labels:
       tsdproxy.enable: "true"
       tsdproxy.name: "unsloth-planner"
-      tsdproxy.port.1: "443/https:8888/http"
+      # tsdproxy.autodetect: "true"
+      tsdproxy.container_port: "8888"
   unsloth-builder:
     networks:
       - cloudflared
@@ -29,4 +32,5 @@ services:
     labels:
       tsdproxy.enable: "true"
       tsdproxy.name: "unsloth-builder"
-      tsdproxy.port.1: "443/https:8888/http"
+      # tsdproxy.autodetect: "true"
+      tsdproxy.container_port: "8888"

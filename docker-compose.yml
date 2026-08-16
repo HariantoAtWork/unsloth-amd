@@ -25,8 +25,8 @@ services:
     shm_size: "2gb"
     stdin_open: true
     tty: true
-    ports:
-      - "${UNSLOTH_STUDIO_PORT:-8888}:${UNSLOTH_STUDIO_PORT:-8888}"
+    # ports:
+    #   - "${UNSLOTH_STUDIO_PORT:-8888}:${UNSLOTH_STUDIO_PORT:-8888}"
     environment:
       # Torch is +rocm7.12; bitsandbytes only ships up to rocm72 (and old bnb maps 7.12→82).
       BNB_ROCM_VERSION: "${BNB_ROCM_VERSION:-72}"

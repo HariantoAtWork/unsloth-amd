@@ -1,0 +1,13 @@
+services:
+  unsloth-amd:
+    build:
+      context: build/unsloth-amd
+      dockerfile: Dockerfile
+    image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
+
+  # Alternate image without the gfx1151 torch pin (upstream Studio CMD).
+  # unsloth-amd-latest:
+  #   build:
+  #     context: build/unsloth-amd
+  #     dockerfile: Dockerfile.latest
+  #   image: harianto/unsloth-amd:latest

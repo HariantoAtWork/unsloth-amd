@@ -37,8 +37,9 @@ It does **not** share Unsloth itself until those containers also mount the share
 
 ## Related files
 
-- `Dockerfile` — base image; explicitly does not run `install.sh`
-- `docker-entrypoint.sh` — `~/.unsloth` → install volume; first-boot installer
+- `build/unsloth-amd/Dockerfile` — base image; explicitly does not run `install.sh`
+- `build/unsloth-amd/docker-entrypoint.sh` — `~/.unsloth` → install volume; first-boot installer
 - `docker-studio-pinned.sh` (in the Dockerfile) — gfx1151 torch pin, then Studio
+- `docker-compose.build.yml` — image build contexts under `build/`
 - `docker-compose.yml` — GPU devices + install/data volumes
 - [Updating Unsloth](Update-Unsloth.md) — paste official `curl | sh` inside `unsloth-amd`

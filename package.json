@@ -1,0 +1,11 @@
+{
+  "name": "unsloth-amd",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "docker:build": "docker compose -f docker-compose.build.yml build",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f unsloth-amd"
+  }
+}

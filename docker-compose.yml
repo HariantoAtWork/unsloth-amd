@@ -8,7 +8,6 @@
 services:
   unsloth-amd:
     container_name: unsloth-amd
-    build: .
     image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
     devices:
       - /dev/kfd
@@ -52,24 +51,24 @@ services:
       start_period: 45m
     restart: unless-stopped
 
-  unsloth-planner:
-    container_name: unsloth-planner
-    image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
-    depends_on:
-      unsloth-amd:
-        condition: service_healthy
-    devices:
-      - /dev/kfd
-      - /dev/dri
-    volumes:
-      - unsloth-install:/opt/unsloth-install          # shared install (same as amd/builder)
-      - unsloth-planner-data:/data/unsloth            # planner save data only
-      - unsloth-share:/root/.local/share              # shared ~/.local/share
-      - unsloth-cache:/root/.cache                    # shared download cache
-    shm_size: "2gb"
-    environment:
-      UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
-    restart: unless-stopped
+#   unsloth-planner:
+#     container_name: unsloth-planner
+#     image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
+#     depends_on:
+#       unsloth-amd:
+#         condition: service_healthy
+#     devices:
+#       - /dev/kfd
+#       - /dev/dri
+#     volumes:
+#       - unsloth-install:/opt/unsloth-install          # shared install (same as amd/builder)
+#       - unsloth-planner-data:/data/unsloth            # planner save data only
+#       - unsloth-share:/root/.local/share              # shared ~/.local/share
+#       - unsloth-cache:/root/.cache                    # shared download cache
+#     shm_size: "2gb"
+#     environment:
+#       UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
+#     restart: unless-stopped
 
   unsloth-builder:
     container_name: unsloth-builder

@@ -12,17 +12,18 @@ Ubuntu 24.04 image with ROCm apt packages, GPU device passthrough, and the offic
 
 ## Automatic first start (default)
 
-**`docker compose build`** / **`docker build`** only create the image (Ubuntu + ROCm/apt stack in the Dockerfile). They do **not** run `install.sh` or install Unsloth. The Unsloth install runs the **first time a container starts** (entrypoint), not during the build — the installer needs GPU device nodes that exist at run time, not during `docker build`. Details: [Why runtime Unsloth install](docs/wiki/Why-runtime-Unsloth-install.md).
+Image sources live under **`build/unsloth-amd/`** (one folder per image). **`bun run docker:build`** / **`docker compose -f docker-compose.build.yml build`** only create the image (Ubuntu + ROCm/apt stack in the Dockerfile). They do **not** run `install.sh` or install Unsloth. The Unsloth install runs the **first time a container starts** (entrypoint), not during the build — the installer needs GPU device nodes that exist at run time, not during `docker build`. Details: [Why runtime Unsloth install](docs/wiki/Why-runtime-Unsloth-install.md).
 
 From this directory:
 
 ```bash
-docker compose up --build -d
+bun run docker:build
+bun run docker:up
 ```
 
-`--build` is optional; it just rebuilds the image before `up`. Watch install progress with `docker compose logs -f unsloth-amd`.
+Or with Compose directly: `docker compose -f docker-compose.build.yml build` then `docker compose up -d`. Watch install progress with `docker compose logs -f unsloth-amd`.
 
-On the **first** start, **`docker-entrypoint.sh`** **`curl`**s **`https://unsloth.ai/install.sh`** to a temp file and runs **`sh`** under **`expect`**. The installer’s final **`Start Unsloth Studio now? [Y/n]`** is read from **`/dev/tty`**, so piping **`n`** on stdin does not work; **expect** drives a pseudo-TTY and sends **`n`** so Studio is not started inside the installer (your **`CMD`** starts Studio). The image installs the **`expect`** package for this. See **`docker-entrypoint.sh`**. Optional: **`patch.sh`** still documents the **`--no-launch`** sed/awk patch if you prefer not to use **expect**.
+On the **first** start, **`build/unsloth-amd/docker-entrypoint.sh`** **`curl`**s **`https://unsloth.ai/install.sh`** to a temp file and runs **`sh`** under **`expect`**. The installer’s final **`Start Unsloth Studio now? [Y/n]`** is read from **`/dev/tty`**, so piping **`n`** on stdin does not work; **expect** drives a pseudo-TTY and sends **`n`** so Studio is not started inside the installer (your **`CMD`** starts Studio). The image installs the **`expect`** package for this. Optional: **`build/unsloth-amd/patch.sh`** still documents the **`--no-launch`** sed/awk patch if you prefer not to use **expect**.
 
 A marker is written at `/opt/unsloth-install/.docker-install-complete` (shared `unsloth-install` volume) so the full installer only runs once for the whole stack. Save data lives on per-service `*-data` volumes; see [Volume layout](docs/wiki/Volume-layout.md).
 
@@ -74,7 +75,7 @@ The final `touch` matches what the automatic path does; without it, every start 
 Build:
 
 ```bash
-docker build -t unsloth-amd:local --build-arg ROCM_VERSION=7.2.3 .
+docker build -t unsloth-amd:local --build-arg ROCM_VERSION=7.2.3 -f build/unsloth-amd/Dockerfile build/unsloth-amd
 ```
 
 Run (adjust volume path if you want a bind mount instead of a named volume):
@@ -109,7 +110,7 @@ docker run --rm -it \
 The Dockerfile `ARG ROCM_VERSION` (default `7.2.3`) selects the ROCm apt suite used for `rocm-core` and related packages. Override when building:
 
 ```bash
-docker build --build-arg ROCM_VERSION=7.2.3 -t unsloth-amd:local .
+docker build --build-arg ROCM_VERSION=7.2.3 -t unsloth-amd:local -f build/unsloth-amd/Dockerfile build/unsloth-amd
 ```
 
 Align this with a ROCm stack that matches PyTorch wheels Unsloth can pull for your GPU.

@@ -89,6 +89,38 @@ services:
       UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
     restart: unless-stopped
 
+  # Ornith1.5 Ciru Halo Agent — custom vLLM/ROCm10 stack (not stock vLLM).
+  # First start downloads HF bundle (~24 GB) + installs wheel runtime on volumes.
+  # Needs ~100 GB host RAM (Strix Halo 128 GB UM). Default CMD is serve-vision.
+  ciru-halo-agent:
+    container_name: ciru-halo-agent
+    image: harianto/ciru-halo-agent:${CIRU_TAG:-vision}
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    volumes:
+      - ciru-bundle:/opt/ciru-halo-agent
+      - ciru-runtime:/opt/ciru-runtime
+      - ciru-cache:/root/.cache
+    ipc: host
+    shm_size: "16gb"
+    stdin_open: true
+    tty: true
+    # ports:
+    #   - "${CIRU_PORT:-8000}:${CIRU_PORT:-8000}"
+    environment:
+      CIRU_HOST: "${CIRU_HOST:-0.0.0.0}"
+      CIRU_PORT: "${CIRU_PORT:-8000}"
+      ORNITH_RUNTIME_ROOT: /opt/ciru-runtime
+      HF_REPO: "${HF_REPO:-jcbtc/Ornith1.5-Ciru-Halo-Agent-vllm-strix-halo}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${CIRU_PORT:-8000}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 60
+      start_period: 90m
+    restart: unless-stopped
+
 # Named volumes (explicit `name:` keeps them stable across compose project renames).
 volumes:
   # One Unsloth install for every service — do not put auth/db/runs here.
@@ -107,3 +139,10 @@ volumes:
     name: unsloth-planner-data
   unsloth-builder-data:
     name: unsloth-builder-data
+  # Ciru Halo Agent HF bundle (weights + launchers) and installed ROCm10 runtime.
+  ciru-bundle:
+    name: ciru-bundle
+  ciru-runtime:
+    name: ciru-runtime
+  ciru-cache:
+    name: ciru-cache

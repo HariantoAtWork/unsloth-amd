@@ -6,6 +6,9 @@
     "docker:build": "docker compose -f docker-compose.build.yml build",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f unsloth-amd"
+    "docker:logs": "docker compose logs -f unsloth-amd",
+    "docker:ciru:build": "docker compose -f docker-compose.build.yml build ciru-halo-agent",
+    "docker:ciru:up": "docker compose up -d ciru-halo-agent",
+    "docker:ciru:logs": "docker compose logs -f ciru-halo-agent"
   }
 }

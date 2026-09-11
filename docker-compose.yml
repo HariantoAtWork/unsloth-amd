@@ -95,9 +95,20 @@ services:
   ciru-halo-agent:
     container_name: ciru-halo-agent
     image: harianto/ciru-halo-agent:${CIRU_TAG:-vision}
+    # ROCm/KFD needs host device groups + relaxed seccomp (default profile SEGV).
+    privileged: true
+    group_add:
+      - "${VIDEO_GID:-44}"
+      - "${RENDER_GID:-992}"
     devices:
       - /dev/kfd
       - /dev/dri
+    device_cgroup_rules:
+      - "c 226:* rmw"
+      - "c 234:* rmw"
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
     volumes:
       - ciru-bundle:/opt/ciru-halo-agent
       - ciru-runtime:/opt/ciru-runtime
@@ -105,7 +116,10 @@ services:
       # uv keeps CPython here; without this, recreate breaks venv/bin/python.
       - ciru-uv:/root/.local/share
     ipc: host
-    shm_size: "16gb"
+    shm_size: "32gb"
+    ulimits:
+      memlock: -1
+      stack: 67108864
     stdin_open: true
     tty: true
     # ports:
@@ -117,13 +131,23 @@ services:
       HF_REPO: "${HF_REPO:-jcbtc/Ornith1.5-Ciru-Halo-Agent-vllm-strix-halo}"
       # Optional — public repo works without it; raises Hub rate limits when set.
       HF_TOKEN: "${HF_TOKEN:-}"
+      # Strix Halo / gfx1151 — native arch; SVM+XNACK needed for HIP allocs on this host.
+      HIP_VISIBLE_DEVICES: "0"
+      ROCR_VISIBLE_DEVICES: "0"
+      HSA_ENABLE_SDMA: "0"
+      HSA_USE_SVM: "1"
+      HSA_XNACK: "1"
+      PYTORCH_ROCM_ARCH: gfx1151
+      GPU_ARCHS: gfx1151
+      AMD_SERIALIZE_KERNEL: "3"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${CIRU_PORT:-8000}/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 60
       start_period: 90m
-    restart: unless-stopped
+    # Stop infinite restart spam when the host GPU stack rejects Ciru ROCm10.
+    restart: on-failure:3
 
 # Named volumes (explicit `name:` keeps them stable across compose project renames).
 volumes:

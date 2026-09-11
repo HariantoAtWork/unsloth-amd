@@ -5,6 +5,17 @@ set -euo pipefail
 
 export PATH="/root/.local/bin:/root/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:${PATH}}"
 
+# Empty CUDA_VISIBLE_DEVICES still trips ROCm; prefer HIP_* only.
+unset CUDA_VISIBLE_DEVICES || true
+export HIP_VISIBLE_DEVICES="${HIP_VISIBLE_DEVICES:-0}"
+export ROCR_VISIBLE_DEVICES="${ROCR_VISIBLE_DEVICES:-0}"
+export HSA_OVERRIDE_GFX_VERSION="${HSA_OVERRIDE_GFX_VERSION:-11.5.1}"
+export HSA_ENABLE_SDMA="${HSA_ENABLE_SDMA:-0}"
+export HSA_USE_SVM="${HSA_USE_SVM:-0}"
+export HSA_ENABLE_INTERRUPT="${HSA_ENABLE_INTERRUPT:-0}"
+export PYTORCH_ROCM_ARCH="${PYTORCH_ROCM_ARCH:-gfx1151}"
+export GPU_ARCHS="${GPU_ARCHS:-gfx1151}"
+
 BUNDLE_ROOT="${CIRU_BUNDLE_ROOT:-/opt/ciru-halo-agent}"
 # Install into a *subdir* of the volume. Ciru's installer refuses any existing
 # path, and a Docker volume mount always creates /opt/ciru-runtime.
@@ -88,6 +99,37 @@ _ensure_devices() {
     fi
 }
 
+_gpu_smoke() {
+    if [[ "${CIRU_SKIP_GPU_SMOKE:-0}" == "1" ]]; then
+        return 0
+    fi
+    echo "==> GPU smoke test (torch.zeros on cuda)"
+    # shellcheck source=/dev/null
+    export VLLM_SOURCE="${RUNTIME_ROOT}/vllm"
+    export VLLM_VENV="${RUNTIME_ROOT}/venv"
+    export AITER_SOURCE="${RUNTIME_ROOT}/aiter"
+    # Prefer core SDK libs for inference (devel layout can GPF with Ciru wheels).
+    export ROCM_DEVEL_ROOT="${ROCM_DEVEL_ROOT:-/nonexistent}"
+    set +e
+    # shellcheck source=/dev/null
+    source "${RUNTIME_ROOT}/runtime-env.sh" >/dev/null 2>&1
+    unset CUDA_VISIBLE_DEVICES || true
+    "${RUNTIME_ROOT}/venv/bin/python" -u -c \
+        'import torch; t=torch.zeros(256, device="cuda"); print("gpu-smoke-ok", float(t.sum()))'
+    local rc=$?
+    set -e
+    if [[ "${rc}" -ne 0 ]]; then
+        echo "ERROR: Ciru ROCm10 torch segfaults on the first HIP kernel (exit ${rc})." >&2
+        echo "       Docker devices/groups/seccomp are set; this is usually a host stack issue:" >&2
+        echo "       - Ciru was validated on NixOS / Linux ~7.2 with ~128 GB unified memory" >&2
+        echo "       - Keep BIOS dedicated GPU memory small (~512 MB), raise TTM/GTT (amd-ttm)" >&2
+        echo "       - Host currently needs a ROCm10-compatible kernel/firmware combo for gfx1151" >&2
+        echo "       Set CIRU_SKIP_GPU_SMOKE=1 only to bypass this check (serve will still crash)." >&2
+        exit "${rc}"
+    fi
+}
+
+
 # Allow overriding the command (bash, serve.sh text-only, etc.).
 if [[ "${1:-}" != "serve-vision" && "${1:-}" != "serve" && -n "${1:-}" ]]; then
     exec "$@"
@@ -112,6 +154,7 @@ _fix_bundle_scripts
 
 export ORNITH_RUNTIME_ROOT="${RUNTIME_ROOT}"
 _install_runtime
+_gpu_smoke
 
 # Writable cache next to the bundle (prefix / AITER JIT).
 mkdir -p "${BUNDLE_ROOT}/bundle/cache"

@@ -12,7 +12,9 @@ Ubuntu 24.04 image with ROCm apt packages, GPU device passthrough, and the offic
 
 ## Automatic first start (default)
 
-Image sources live under **`build/unsloth-amd/`** (one folder per image). **`bun run docker:build`** / **`docker compose -f docker-compose.build.yml build`** only create the image (Ubuntu + ROCm/apt stack in the Dockerfile). They do **not** run `install.sh` or install Unsloth. The Unsloth install runs the **first time a container starts** (entrypoint), not during the build — the installer needs GPU device nodes that exist at run time, not during `docker build`. Details: [Why runtime Unsloth install](docs/wiki/Why-runtime-Unsloth-install.md).
+Image sources live under **`build/unsloth-amd/`** (one folder per image). **`bun run docker:build`** / **`docker compose -f _build.yml build`** only create the image (Ubuntu + ROCm/apt stack in the Dockerfile). They do **not** run `install.sh` or install Unsloth. The Unsloth install runs the **first time a container starts** (entrypoint), not during the build — the installer needs GPU device nodes that exist at run time, not during `docker build`. Details: [Why runtime Unsloth install](docs/wiki/Why-runtime-Unsloth-install.md).
+
+Hub multi-arch publishes use **`Dockerfile.platform`** via **`bun run docker:push`** / **`docker compose -f _push.yml build --push`** (not loadable into the local engine).
 
 From this directory:
 
@@ -21,7 +23,7 @@ bun run docker:build
 bun run docker:up
 ```
 
-Or with Compose directly: `docker compose -f docker-compose.build.yml build` then `docker compose up -d`. Watch install progress with `docker compose logs -f unsloth-amd`.
+Or with Compose directly: `docker compose -f _build.yml build` then `docker compose up -d`. Watch install progress with `docker compose logs -f unsloth-amd`.
 
 On the **first** start, **`build/unsloth-amd/docker-entrypoint.sh`** **`curl`**s **`https://unsloth.ai/install.sh`** to a temp file and runs **`sh`** under **`expect`**. The installer’s final **`Start Unsloth Studio now? [Y/n]`** is read from **`/dev/tty`**, so piping **`n`** on stdin does not work; **expect** drives a pseudo-TTY and sends **`n`** so Studio is not started inside the installer (your **`CMD`** starts Studio). The image installs the **`expect`** package for this. Optional: **`build/unsloth-amd/patch.sh`** still documents the **`--no-launch`** sed/awk patch if you prefer not to use **expect**.
 

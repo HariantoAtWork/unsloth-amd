@@ -70,24 +70,24 @@ services:
 #       UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
 #     restart: unless-stopped
 
-  unsloth-builder:
-    container_name: unsloth-builder
-    image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
-    depends_on:
-      unsloth-amd:
-        condition: service_healthy
-    devices:
-      - /dev/kfd
-      - /dev/dri
-    volumes:
-      - unsloth-install:/opt/unsloth-install          # shared install (same as amd/planner)
-      - unsloth-builder-data:/data/unsloth            # builder save data only
-      - unsloth-share:/root/.local/share              # shared ~/.local/share
-      - unsloth-cache:/root/.cache                    # shared download cache
-    shm_size: "2gb"
-    environment:
-      UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
-    restart: unless-stopped
+  # unsloth-builder:
+  #   container_name: unsloth-builder
+  #   image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
+  #   depends_on:
+  #     unsloth-amd:
+  #       condition: service_healthy
+  #   devices:
+  #     - /dev/kfd
+  #     - /dev/dri
+  #   volumes:
+  #     - unsloth-install:/opt/unsloth-install          # shared install (same as amd/planner)
+  #     - unsloth-builder-data:/data/unsloth            # builder save data only
+  #     - unsloth-share:/root/.local/share              # shared ~/.local/share
+  #     - unsloth-cache:/root/.cache                    # shared download cache
+  #   shm_size: "2gb"
+  #   environment:
+  #     UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
+  #   restart: unless-stopped
 
   # Ornith1.5 Ciru Halo Agent — custom vLLM/ROCm10 stack (not stock vLLM).
   # First start downloads HF bundle (~24 GB) + installs wheel runtime on volumes.

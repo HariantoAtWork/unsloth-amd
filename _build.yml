@@ -11,10 +11,3 @@ services:
   #     context: build/unsloth-amd
   #     dockerfile: Dockerfile.latest
   #   image: harianto/unsloth-amd:latest
-
-  # Ornith1.5 Ciru Halo Agent (vLLM/ROCm10 wheel runtime) — serve-vision default.
-  ciru-halo-agent:
-    build:
-      context: build/ciru-halo-agent
-      dockerfile: Dockerfile
-    image: harianto/ciru-halo-agent:${CIRU_TAG:-vision}

@@ -41,15 +41,3 @@ services:
       tsdproxy.port.2: "8888/http:8888/http"
       # tsdproxy.autodetect: "true"
       # tsdproxy.container_port: "8888"
-
-  ciru-halo-agent:
-    networks:
-      - cloudflared
-      - tsdproxy
-    labels:
-      tsdproxy.enable: "true"
-      tsdproxy.name: "ciru-halo-agent"
-      tsdproxy.port.1: "443/https:8000/http"
-      tsdproxy.port.2: "8000/http:8000/http"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"

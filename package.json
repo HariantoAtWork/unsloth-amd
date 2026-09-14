@@ -7,13 +7,6 @@
     "docker:push": "docker compose -f _push.yml build --no-cache --push",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f unsloth-amd",
-    "docker:ciru:build": "docker compose -f _build.yml build ciru-halo-agent",
-    "docker:ciru:push": "docker compose -f _push.yml build --no-cache --push ciru-halo-agent",
-    "docker:ciru:up": "docker compose up -d ciru-halo-agent",
-    "docker:ciru:logs": "docker compose logs -f ciru-halo-agent",
-    "host:ciru:install": "build/ciru-halo-agent/install-host.sh",
-    "host:ciru:smoke": "/home/ciru/smoke-gpu.sh",
-    "host:ciru:serve": "/home/ciru/serve-vision.sh"
+    "docker:logs": "docker compose logs -f unsloth-amd"
   }
 }

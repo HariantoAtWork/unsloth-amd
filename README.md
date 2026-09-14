@@ -16,6 +16,8 @@ Image sources live under **`build/unsloth-amd/`** (one folder per image). **`bun
 
 Hub multi-arch publishes use **`Dockerfile.platform`** via **`bun run docker:push`** / **`docker compose -f _push.yml build --push`** (not loadable into the local engine).
 
+Ciru Halo Agent lives in a sibling project: [`/docker/ciru-halo-agent`](../ciru-halo-agent).
+
 From this directory:
 
 ```bash

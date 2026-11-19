@@ -2,23 +2,23 @@ FROM ubuntu:24.04
 
 # Two different version schemes — do not conflate them:
 #   ROCM_VERSION       → apt channel on repo.radeon.com/rocm/apt/<ver>  (e.g. 7.2.4)
-#   TORCH_ROCM_VERSION → PyTorch wheel tag +rocm<ver> from AMD gfx1151 index (e.g. 7.12.0)
-# There is no apt path "7.12" / "7.12.0"; latest 7.x apt channels are 7.2.x.
+#   TORCH_ROCM_VERSION → PyTorch wheel tag +rocm<ver> from AMD gfx1151 index (e.g. 7.13.0)
+# There is no apt path "7.12" / "7.13"; latest 7.x apt channels are 7.2.x.
 ARG ROCM_VERSION=7.2.4
-ARG TORCH_ROCM_VERSION=7.12.0
+ARG TORCH_ROCM_VERSION=7.13.0
 
-# Fresh Unsloth install.sh currently pulls torch 2.11+rocm7.13, which SIGSEGVs on
-# gfx1151 (Radeon 8060S). Highest verified-good stack on this host is
-# torch 2.10.0+rocm7.12.0 from AMD's gfx1151 wheel index (7.13 still segfaults).
-# Image tag convention: harianto/unsloth-amd:1.0.0-torch2.10.0-rocm7.12.0
-ARG UNSLOTH_TORCH=2.10.0+rocm${TORCH_ROCM_VERSION}
-ARG UNSLOTH_TORCHVISION=0.25.0+rocm${TORCH_ROCM_VERSION}
+# Upstream install.sh (2026.11.7+) routes gfx1151 to AMD's arch index and installs
+# torch 2.11+rocm7.13 (fixes _grouped_mm / Strix kernel bugs that made 7.13 unusable).
+# Pin matches that stack so a container restart does not roll back to 2.10/7.12.
+# Image tag convention: harianto/unsloth-amd:1.0.0-torch2.11.0-rocm7.13.0
+ARG UNSLOTH_TORCH=2.11.0+rocm${TORCH_ROCM_VERSION}
+ARG UNSLOTH_TORCHVISION=0.26.0+rocm${TORCH_ROCM_VERSION}
 ARG UNSLOTH_TORCH_INDEX=https://repo.amd.com/rocm/whl/gfx1151/
 
-# bitsandbytes has no prebuilt for TheRock/torch +rocm7.12 (and 0.49.x maps
-# "7.12" → "82" via major*10+minor). We alias missing .so tags to the shipped
-# rocm72 binary (matches apt ROCM_VERSION, includes gfx1151). BNB_ROCM_VERSION
-# is honoured by bitsandbytes >= 0.50; 0.49.x needs the aliases.
+# bitsandbytes still ships libbitsandbytes_rocm{62..72}; torch may report 7.12/7.13.
+# Alias missing tags to the shipped rocm72 binary (matches apt ROCM_VERSION).
+# BNB_ROCM_VERSION is honoured by bitsandbytes >= 0.50; 0.49.x needs the aliases.
+
 ENV DEBIAN_FRONTEND=noninteractive \
     ROCM_PATH=/opt/rocm \
     PATH="/opt/rocm/bin:/root/.bun/bin:/root/.local/bin:${PATH}" \
@@ -88,8 +88,8 @@ export PATH="/opt/rocm/bin:/root/.bun/bin:/root/.local/bin:${PATH}"
 VENV="${HOME}/.unsloth/studio/unsloth_studio"
 PY="${VENV}/bin/python"
 MARKER="${HOME}/.unsloth/.docker-torch-pin-complete"
-TORCH_SPEC="${UNSLOTH_TORCH:-2.10.0+rocm7.12.0}"
-TV_SPEC="${UNSLOTH_TORCHVISION:-0.25.0+rocm7.12.0}"
+TORCH_SPEC="${UNSLOTH_TORCH:-2.11.0+rocm7.13.0}"
+TV_SPEC="${UNSLOTH_TORCHVISION:-0.26.0+rocm7.13.0}"
 INDEX="${UNSLOTH_TORCH_INDEX:-https://repo.amd.com/rocm/whl/gfx1151/}"
 
 _prefer_wheel_rocm_libs() {
@@ -138,7 +138,7 @@ _pin_torch() {
 }
 
 _ensure_bitsandbytes_rocm() {
-    # PyTorch reports hip/ROCm 7.12; wheels only ship libbitsandbytes_rocm{62..72}.
+    # PyTorch reports hip/ROCm 7.12 or 7.13; wheels only ship libbitsandbytes_rocm{62..72}.
     # bitsandbytes 0.49.x mis-tags 7.12 as "82" (major*10+minor) and rejects
     # BNB_CUDA_VERSION on ROCm. Alias missing tags to the shipped rocm72 .so.
     # bitsandbytes >= 0.50 also honours BNB_ROCM_VERSION.
@@ -154,7 +154,7 @@ _ensure_bitsandbytes_rocm() {
     fi
 
     local tag
-    for tag in 82 712; do
+    for tag in 82 83 712 713; do
         local dst="${bnb_dir}/libbitsandbytes_rocm${tag}.so"
         if [[ -L "${dst}" || ! -e "${dst}" ]]; then
             ln -sfn "libbitsandbytes_rocm${BNB_ROCM_VERSION}.so" "${dst}"

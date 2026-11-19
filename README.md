@@ -12,9 +12,9 @@ Ubuntu 24.04 image with ROCm apt packages, GPU device passthrough, and the offic
 
 ## Automatic first start (default)
 
-Image sources live under **`build/unsloth-amd/`** (one folder per image). **`bun run docker:build`** / **`docker compose -f _build.yml build`** only create the image (Ubuntu + ROCm/apt stack in the Dockerfile). They do **not** run `install.sh` or install Unsloth. The Unsloth install runs the **first time a container starts** (entrypoint), not during the build — the installer needs GPU device nodes that exist at run time, not during `docker build`. Details: [Why runtime Unsloth install](docs/wiki/Why-runtime-Unsloth-install.md).
+Image sources live under **`build/unsloth-amd/`**. **`bun run docker:build`** / **`docker compose -f _build.yml build`** only create the **linux/amd64** image (Ubuntu + ROCm/apt stack). They do **not** run `install.sh` or install Unsloth. The Unsloth install runs the **first time a container starts** (entrypoint), not during the build — the installer needs GPU device nodes that exist at run time, not during `docker build`. Details: [Why runtime Unsloth install](docs/wiki/Why-runtime-Unsloth-install.md).
 
-Hub multi-arch publishes use **`Dockerfile.platform`** via **`bun run docker:push`** / **`docker compose -f _push.yml build --push`** (not loadable into the local engine).
+This stack targets **AMD Strix Halo / gfx1151** only (ROCm apt + AMD arch wheels are amd64). There is no multi-arch build: **`bun run docker:push`** pushes the same local image from `_build.yml`.
 
 Ciru Halo Agent lives in a sibling project: [`/docker/ciru-halo-agent`](../ciru-halo-agent).
 
@@ -22,6 +22,7 @@ From this directory:
 
 ```bash
 bun run docker:build
+bun run docker:push   # optional Hub upload of the local amd64 image
 bun run docker:up
 ```
 

@@ -16,20 +16,28 @@ docker compose exec unsloth-amd bash
 Inside that bash (not on the host), paste the same command as the Unsloth UI:
 
 ```bash
-curl -fsSL https://unsloth.ai/install.sh | sh
+# Prefer skip-autostart so the installer does not fight the running Studio CMD
+UNSLOTH_SKIP_AUTOSTART=1 curl -fsSL https://unsloth.ai/install.sh | sh
 ```
 
-When asked **Start Unsloth Studio now?**, answer **n**. Studio is started by the container command, not by the installer.
+If the installer still asks **Start Unsloth Studio now?**, answer **n**. Studio is started by the container command, not by the installer.
 
-Leave the container, then restart so the gfx1151 torch pin re-applies:
+Leave the container, then recreate so Studio reloads the new package (and the gfx1151 torch pin stays aligned with `UNSLOTH_TORCH`):
 
 ```bash
 exit
-docker compose restart unsloth-amd
+docker compose up -d unsloth-amd
 docker compose start unsloth-planner unsloth-builder
 ```
 
 Do **not** `docker compose down` after an update — that is unnecessary. Watch pin/startup with `docker compose logs -f unsloth-amd`.
+
+One-liner from the host (pipeline must stay inside the container):
+
+```bash
+docker compose exec unsloth-amd bash -lc 'UNSLOTH_SKIP_AUTOSTART=1 curl -fsSL https://unsloth.ai/install.sh | sh'
+docker compose up -d unsloth-amd
+```
 
 ## Do not
 
@@ -42,11 +50,7 @@ Do **not** `docker compose down` after an update — that is unnecessary. Watch 
 
   The host parser splits on `|` before Docker sees it: left side is `docker compose exec … curl` (script bytes come back to your terminal); right side is bare `sh` (executes those bytes as **root on `/`**, not in the volume).
 
-  Either `exec … bash` first (procedure above), or quote the whole pipeline:
-
-  ```bash
-  docker compose exec unsloth-amd bash -lc 'curl -fsSL https://unsloth.ai/install.sh | sh'
-  ```
+  Either `exec … bash` first (procedure above), or quote the whole pipeline as in the one-liner.
 
 - `rm -rf ~/.unsloth` inside the container. That path is a symlink to the shared install volume.
 - Expect **`docker compose build`** to bump Unsloth. The image does not contain the package.
@@ -54,7 +58,7 @@ Do **not** `docker compose down` after an update — that is unnecessary. Watch 
 
 ## After install: torch pin
 
-Upstream `install.sh` may pull a newer torch/ROCm combo that **SIGSEGVs on gfx1151**. Restarting `unsloth-amd` runs `docker-studio-pinned.sh`, which pins torch back to the verified-good wheels. See [Why runtime Unsloth install](Why-runtime-Unsloth-install.md).
+From **2026.11.7**, upstream `install.sh` detects gfx1151 and installs `torch 2.11.0+rocm7.13.0` from AMD’s arch index (the stack that fixes earlier Strix `_grouped_mm` segfaults). Compose/`docker-studio-pinned.sh` pin to the same versions via `UNSLOTH_TORCH` / `UNSLOTH_TORCHVISION` so a restart does not roll back to `2.10`/`7.12`. Override those env vars if you need to pin differently. See [Why runtime Unsloth install](Why-runtime-Unsloth-install.md).
 
 ## Wipe and reinstall instead
 

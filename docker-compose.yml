@@ -8,10 +8,17 @@
 services:
   unsloth-amd:
     container_name: unsloth-amd
-    image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
+    image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.11.0-rocm7.13.0}
+    privileged: true
+    group_add:
+      - "${VIDEO_GID:-26}"
+      - "${RENDER_GID:-383}"
     devices:
       - /dev/kfd
       - /dev/dri
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
     volumes:
       # Shared Unsloth version (venv, llama.cpp, helper venvs, install markers)
       - unsloth-install:/opt/unsloth-install
@@ -27,13 +34,17 @@ services:
     # ports:
     #   - "${UNSLOTH_STUDIO_PORT:-8888}:${UNSLOTH_STUDIO_PORT:-8888}"
     environment:
-      # Torch is +rocm7.12; bitsandbytes only ships up to rocm72 (and old bnb maps 7.12→82).
+      # Torch is +rocm7.13; bitsandbytes only ships up to rocm72 (alias 7.12/7.13 tags).
       BNB_ROCM_VERSION: "${BNB_ROCM_VERSION:-72}"
       UNSLOTH_STUDIO_HOST: "${UNSLOTH_STUDIO_HOST:-0.0.0.0}"
       UNSLOTH_STUDIO_PORT: "${UNSLOTH_STUDIO_PORT:-8888}"
       UNSLOTH_STUDIO_PASSWORD: "${UNSLOTH_STUDIO_PASSWORD:-}"
       UNSLOTH_API_KEY: "${UNSLOTH_API_KEY:-}"
       UNSLOTH_AUTOLOAD_LAST_MODEL: "${UNSLOTH_AUTOLOAD_LAST_MODEL:-1}"
+      # Keep pin in sync with install.sh gfx1151 wheels (override without image rebuild).
+      UNSLOTH_TORCH: "${UNSLOTH_TORCH:-2.11.0+rocm7.13.0}"
+      UNSLOTH_TORCHVISION: "${UNSLOTH_TORCHVISION:-0.26.0+rocm7.13.0}"
+      UNSLOTH_TORCH_INDEX: "${UNSLOTH_TORCH_INDEX:-https://repo.amd.com/rocm/whl/gfx1151/}"
       # Official install.sh writes here (and TMPDIR for llama.cpp/whisper builds)
       UNSLOTH_STUDIO_HOME: /opt/unsloth-install/studio
       TMPDIR: /opt/unsloth-install/tmp
@@ -49,11 +60,11 @@ services:
       timeout: 5s
       retries: 40
       start_period: 45m
-    restart: unless-stopped
+    # restart: unless-stopped
 
 #   unsloth-planner:
 #     container_name: unsloth-planner
-#     image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
+#     image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.11.0-rocm7.13.0}
 #     depends_on:
 #       unsloth-amd:
 #         condition: service_healthy
@@ -70,24 +81,24 @@ services:
 #       UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
 #     restart: unless-stopped
 
-  unsloth-builder:
-    container_name: unsloth-builder
-    image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.10.0-rocm7.12.0}
-    depends_on:
-      unsloth-amd:
-        condition: service_healthy
-    devices:
-      - /dev/kfd
-      - /dev/dri
-    volumes:
-      - unsloth-install:/opt/unsloth-install          # shared install (same as amd/planner)
-      - unsloth-builder-data:/data/unsloth            # builder save data only
-      - unsloth-share:/root/.local/share              # shared ~/.local/share
-      - unsloth-cache:/root/.cache                    # shared download cache
-    shm_size: "2gb"
-    environment:
-      UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
-    restart: unless-stopped
+  # unsloth-builder:
+  #   container_name: unsloth-builder
+  #   image: harianto/unsloth-amd:${UNSLOTH_TAG:-1.0.0-torch2.11.0-rocm7.13.0}
+  #   depends_on:
+  #     unsloth-amd:
+  #       condition: service_healthy
+  #   devices:
+  #     - /dev/kfd
+  #     - /dev/dri
+  #   volumes:
+  #     - unsloth-install:/opt/unsloth-install          # shared install (same as amd/planner)
+  #     - unsloth-builder-data:/data/unsloth            # builder save data only
+  #     - unsloth-share:/root/.local/share              # shared ~/.local/share
+  #     - unsloth-cache:/root/.cache                    # shared download cache
+  #   shm_size: "2gb"
+  #   environment:
+  #     UNSLOTH_STUDIO_PASSWORD: "Opti0n@l"
+  #   restart: unless-stopped
 
 # Named volumes (explicit `name:` keeps them stable across compose project renames).
 volumes:

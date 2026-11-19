@@ -18,7 +18,7 @@ That is why the entrypoint talks about reinstall “needs GPU /dev nodes”, and
 
 ### 2. This host needs a post-install torch pin
 
-Upstream `install.sh` currently pulls a newer torch/ROCm combo that **SIGSEGVs on gfx1151** (Radeon 8060S). After install, `docker-studio-pinned.sh` re-pins torch/torchvision to the verified-good AMD gfx1151 wheels (see Dockerfile comments / image tag).
+Upstream `install.sh` (from **2026.11.7**) routes gfx1151 to AMD’s arch index and installs `torch 2.11+rocm7.13`. `docker-studio-pinned.sh` re-asserts that same pin on every start (via `UNSLOTH_TORCH` / `UNSLOTH_TORCHVISION`) so dependency resolution cannot silently swap in a CUDA or generic ROCm wheel.
 
 Doing install + pin at **startup** keeps that fix next to the GPU and the volume-backed venv, instead of freezing a fragile, GPU-specific install into every image rebuild.
 
@@ -40,7 +40,6 @@ It does **not** share Unsloth itself until those containers also mount the share
 - `build/unsloth-amd/Dockerfile` — base image; explicitly does not run `install.sh`
 - `build/unsloth-amd/docker-entrypoint.sh` — `~/.unsloth` → install volume; first-boot installer
 - `docker-studio-pinned.sh` (in the Dockerfile) — gfx1151 torch pin, then Studio
-- `_build.yml` — local image build contexts under `build/` (`Dockerfile`)
-- `_push.yml` — Hub multi-arch publishes (`Dockerfile.platform`)
+- `_build.yml` — amd64 image build/push (`Dockerfile`; Strix Halo / ROCm only)
 - `docker-compose.yml` — GPU devices + install/data volumes
 - [Updating Unsloth](Update-Unsloth.md) — paste official `curl | sh` inside `unsloth-amd`
